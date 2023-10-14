@@ -1,12 +1,13 @@
 import config from "./config.js";
 import axios from "axios";
+import {setupCache} from 'axios-cache-interceptor';
 
-//todo : handle cache
-
-const API = axios.create({
-    baseURL: config.apiUrl,
-    // baseURL: 'http://localhost:3000',
-});
+const API = setupCache(
+    axios.create({
+        baseURL: config.apiUrl,
+        // baseURL: 'http://localhost:3000',
+    })
+);
 
 export async function searchMovie(title, page) {
     try {
