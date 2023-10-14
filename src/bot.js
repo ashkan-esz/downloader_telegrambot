@@ -14,7 +14,6 @@ await bot.telegram.setChatMenuButton();
 bot.start((ctx) => {
     ctx.session = {
         pageNumber: 1,
-        apiState: '',
     };
     ctx.reply('Welcome', getMenuButtons());
 });
