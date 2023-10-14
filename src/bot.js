@@ -1,5 +1,5 @@
 import config from "./config.js";
-import {Telegraf} from "telegraf";
+import {session, Telegraf} from "telegraf";
 import {getMenuButtons, handleMenuButtons} from "./menuButtons.js";
 
 if (!config.botToken) {
@@ -7,10 +7,17 @@ if (!config.botToken) {
 }
 
 const bot = new Telegraf(config.botToken);
+bot.use(session());
 
 await bot.telegram.setChatMenuButton();
 
-bot.start((ctx) => ctx.reply('Welcome', getMenuButtons()));
+bot.start((ctx) => {
+    ctx.session = {
+        pageNumber: 1,
+        apiState: '',
+    };
+    ctx.reply('Welcome', getMenuButtons());
+});
 
 // bot.command('oldschool', (ctx) => ctx.reply('Hello')); //todo :
 
