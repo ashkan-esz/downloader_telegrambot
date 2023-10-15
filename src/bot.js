@@ -1,6 +1,6 @@
 import config from "./config.js";
 import {session, Telegraf} from "telegraf";
-import {getMenuButtons, handleMenuButtons} from "./menuButtons.js";
+import {getMenuButtons, handleMenuButtons, handleMovieData, sendTrailer} from "./menuButtons.js";
 
 if (!config.botToken) {
     throw new Error('"BOT_TOKEN" env var is required!');
@@ -10,6 +10,15 @@ const bot = new Telegraf(config.botToken);
 bot.use(session());
 
 await bot.telegram.setChatMenuButton();
+
+bot.hears(/^\/start (.*)$/, ctx => {
+    let text = ctx.update.message.text.replace('/start ', '');
+    if (text.startsWith('movieID_')) {
+        return handleMovieData(ctx, text);
+    } else if (text.startsWith('trailer_')) {
+        return sendTrailer(ctx, text.split('trailer_').pop());
+    }
+});
 
 bot.start((ctx) => {
     ctx.session = {
