@@ -30,10 +30,11 @@ export async function searchMovie(title, page) {
     }
 }
 
-export async function getMovieData(movieId, dataLevel = 'high') {
+export async function getMovieData(movieId, dataLevel = 'high', season = '') {
     try {
+        let seasonFilter = season ? `&seasons=${season}` : '';
         let result = await API.get(
-            `/movies/searchByID/${movieId}/${dataLevel}?noUserStats=true&embedRelatedTitles=true&embedStaffAndCharacter=true`, {
+            `/movies/searchByID/${movieId}/${dataLevel}?noUserStats=true&embedRelatedTitles=true&embedStaffAndCharacter=true${seasonFilter}`, {
                 cache: {
                     ttl: 5 * 60 * 1000 //5 minute
                 }

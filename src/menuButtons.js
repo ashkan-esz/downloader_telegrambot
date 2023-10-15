@@ -2,7 +2,7 @@ import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
 import {getMovieData, searchMovie} from "./api.js";
-import {capitalize} from "./utils.js";
+import {capitalize, encodersRegex} from "./utils.js";
 
 
 const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
@@ -43,6 +43,10 @@ export function handleMenuButtons(bot) {
 
     bot.action(/movieID_/, async (ctx) => {
         return handleMovieData(ctx);
+    });
+
+    bot.action(/download_/, async (ctx) => {
+        return handleMovieDownload(ctx);
     });
 
     bot.on(message('text'), (ctx) => {
@@ -126,7 +130,6 @@ async function handleMovieSearch(ctx, title) {
 
 async function sendMovieData(ctx, message_id, movieData) {
     await ctx.deleteMessage(message_id);
-    //todo : handle download
 
     let movieID = movieData._id || movieData.movieID;
     let trailerLink = '';
@@ -155,7 +158,7 @@ async function sendMovieData(ctx, message_id, movieData) {
     }
 
     let movieTitle = movieData.title || movieData.rawTitle;
-    caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID})\n`;
+    caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
     if (config.webUrl) {
         caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
     }
@@ -181,6 +184,116 @@ async function sendMovieData(ctx, message_id, movieData) {
         await ctx.reply(caption, {parse_mode: 'MarkdownV2',});
     }
 
+}
+
+export async function handleMovieDownload(ctx, text) {
+    let data = (ctx.update.callback_query?.data || text || '')
+        .toLowerCase()
+        .replace('anime_movie', 'animemovie')
+        .replace('anime_serial', 'animeserial')
+        .split('_').slice(1);// movieID_type_season_episode
+    if (data.length === 0 || data.length === 1) {
+        return await ctx.reply(`Invalid MovieID`);
+    }
+
+    let state = data.length === 2 ? (data[1].includes('serial') ? 'Season' : 'DownloadLinks')
+        : data.length === 3 ? 'Episode' : 'DownloadLinks';
+    const {message_id} = await ctx.reply(`Fetching ${state} Data`);
+    let movieData = await getMovieData(data[0], 'dlink', data[2]);
+    if (movieData === 'error') {
+        return await ctx.telegram.editMessageText(
+            ctx.update.message.chat.id, message_id,
+            undefined, 'Server Error on fetching Movie data');
+    } else if (!movieData) {
+        return await ctx.telegram.editMessageText(
+            ctx.update.message.chat.id, message_id,
+            undefined, 'Movie data not found!');
+    }
+
+    if (data.length === 2) {
+        //show seasons / movies download links
+        if (data[1].includes('movie')) {
+            //its movies download link
+            let links = movieData.qualities.map(q => q.links).flat(1);
+            if (links.length === 0) {
+                return await ctx.telegram.editMessageText(
+                    (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                    undefined, `\"${movieData.rawTitle}\" => No Download Link Found!`);
+            }
+
+            let noCensoredLinks = links.filter(l => !l.info.toLowerCase().includes('censored'));
+
+            let buttons = noCensoredLinks.map(l => Markup.button.url(
+                `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
+                l.link
+            ));
+
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, `\"${movieData.rawTitle}\" => Download Links`,
+                Markup.inlineKeyboard([...buttons], {columns: 2}),
+            );
+        } else {
+            //its serial, choose season
+            if (movieData.seasons.length === 0) {
+                return await ctx.telegram.editMessageText(
+                    (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                    undefined, `\"${movieData.rawTitle}\" => No Season Found!`);
+            }
+
+            let buttons = movieData.seasons.map(s => Markup.button.callback(
+                `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
+                'download_' + data[0] + '_' + data[1] + '_' + s.seasonNumber,
+            ));
+
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, `\"${movieData.rawTitle}\" => Choose Season`,
+                Markup.inlineKeyboard([...buttons], {columns: 2}));
+        }
+    }
+    if (data.length === 3) {
+        //show episodes
+        let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes || [];
+        if (episodes.length === 0) {
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, `\"${movieData.rawTitle}\" (Season: ${data[2]}) => No Episode Found!`);
+        }
+
+        let buttons = episodes.map(e => Markup.button.callback(
+            `Episode ${e.episodeNumber} ${(e.title && e.title !== 'unknown' && !e.title.match(/episode \d/i)) ? `(${e.title})` : ''}`,
+            'download_' + data[0] + '_' + data[1] + '_' + data[2] + '_' + e.episodeNumber,
+        ));
+
+        return await ctx.telegram.editMessageText(
+            (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+            undefined, `\"${movieData.rawTitle}\" (Season: ${data[2]}) => Choose Episode`,
+            Markup.inlineKeyboard([...buttons], {columns: 3}));
+    }
+
+    //show download links
+    let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes || [];
+    if (episodes.length > 200) {
+        episodes = episodes.slice(episodes.length - 200);
+    }
+    let links = episodes.find(e => e.episodeNumber === Number(data[3]))?.links || [];
+    if (links.length === 0) {
+        return await ctx.telegram.editMessageText(
+            (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+            undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => No Download Link Found!`);
+    }
+
+    let buttons = links.map(l => Markup.button.url(
+        `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
+        l.link
+    ));
+
+    return await ctx.telegram.editMessageText(
+        (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+        undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => Download Links`,
+        Markup.inlineKeyboard([...buttons], {columns: 2}),
+    );
 }
 
 export async function sendTrailer(ctx, movieID) {

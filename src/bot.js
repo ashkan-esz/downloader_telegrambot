@@ -1,6 +1,6 @@
 import config from "./config.js";
 import {session, Telegraf} from "telegraf";
-import {getMenuButtons, handleMenuButtons, handleMovieData, sendTrailer} from "./menuButtons.js";
+import {getMenuButtons, handleMenuButtons, handleMovieData, handleMovieDownload, sendTrailer} from "./menuButtons.js";
 
 if (!config.botToken) {
     throw new Error('"BOT_TOKEN" env var is required!');
@@ -17,6 +17,8 @@ bot.hears(/^\/start (.*)$/, ctx => {
         return handleMovieData(ctx, text);
     } else if (text.startsWith('trailer_')) {
         return sendTrailer(ctx, text.split('trailer_').pop());
+    } else if (text.startsWith('download_')) {
+        return handleMovieDownload(ctx, text);
     }
 });
 
