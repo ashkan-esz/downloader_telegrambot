@@ -11,6 +11,23 @@ bot.use(session());
 
 await bot.telegram.setChatMenuButton();
 
+bot.use(async (ctx, next) => {
+    const userId = ctx.message?.from?.id || (ctx.update.callback_query || ctx.update)?.message?.chat?.id;
+
+    try {
+        let chatMember = await ctx.telegram.getChatMember('@' + config.channel, userId);
+        if (chatMember.status === 'left' || chatMember.status === 'kicked') {
+            await ctx.reply(`Please join our channel to use this bot: https://t.me/${config.channel}`);
+            return;
+        }
+    } catch (error) {
+        // saveError(error);
+        return;
+    }
+
+    await next();
+});
+
 bot.hears(/^\/start (.*)$/, ctx => {
     let text = ctx.update.message.text.replace('/start ', '');
     if (text.startsWith('movieID_')) {
@@ -22,7 +39,7 @@ bot.hears(/^\/start (.*)$/, ctx => {
     }
 });
 
-bot.start((ctx) => {
+bot.start(async (ctx) => {
     ctx.session = {
         pageNumber: 1,
     };
