@@ -1,6 +1,7 @@
 import config from "./config.js";
 import axios from "axios";
 import {buildMemoryStorage, setupCache} from 'axios-cache-interceptor';
+import {saveError} from "./saveError.js";
 
 const API = setupCache(
     axios.create({
@@ -21,11 +22,10 @@ export async function searchMovie(title, page) {
             });
         return result.data.data;
     } catch (error) {
-        // saveError(error);
-        // console.log(error.response);
         if (error.response?.status === 404) {
             return [];
         }
+        saveError(error);
         return 'error';
     }
 }
@@ -41,11 +41,10 @@ export async function getMovieData(movieId, dataLevel = 'high', season = '') {
             });
         return result.data.data;
     } catch (error) {
-        // saveError(error);
-        // console.log(error.response);
         if (error.response?.status === 404) {
             return null;
         }
+        saveError(error);
         return 'error';
     }
 }

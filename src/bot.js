@@ -1,15 +1,38 @@
 import config from "./config.js";
 import {session, Telegraf} from "telegraf";
+import * as Sentry from "@sentry/node";
+import {ProfilingIntegration} from "@sentry/profiling-node";
 import {getMenuButtons, handleMenuButtons, handleMovieData, handleMovieDownload, sendTrailer} from "./menuButtons.js";
+import {saveError} from "./saveError.js";
 
 if (!config.botToken) {
     throw new Error('"BOT_TOKEN" env var is required!');
 }
 
+Sentry.init({
+    dsn: config.sentryDns,
+    integrations: [
+        new ProfilingIntegration(),
+    ],
+    // Performance Monitoring
+    tracesSampleRate: 0.01,
+    // Set sampling rate for profiling - this is relative to tracesSampleRate
+    profilesSampleRate: 0.01,
+});
+
 const bot = new Telegraf(config.botToken);
 bot.use(session());
 
 await bot.telegram.setChatMenuButton();
+
+bot.catch(async (err, ctx) => {
+    saveError(err);
+    try {
+        await ctx.reply('Sorry, Internal Error');
+    } catch (err2) {
+        saveError(err2);
+    }
+});
 
 bot.use(async (ctx, next) => {
     const userId = ctx.message?.from?.id || (ctx.update.callback_query || ctx.update)?.message?.chat?.id;
@@ -21,7 +44,7 @@ bot.use(async (ctx, next) => {
             return;
         }
     } catch (error) {
-        // saveError(error);
+        saveError(error);
         return;
     }
 
@@ -45,8 +68,6 @@ bot.start(async (ctx) => {
     };
     ctx.reply('Welcome', getMenuButtons());
 });
-
-// bot.command('oldschool', (ctx) => ctx.reply('Hello')); //todo :
 
 handleMenuButtons(bot);
 

@@ -177,7 +177,7 @@ async function sendMovieData(ctx, message_id, movieData) {
             replied = true;
             break;
         } catch (error2) {
-            // saveError(error2);
+            saveError(error2);
         }
     }
     if (!replied) {
@@ -321,7 +321,7 @@ export async function sendTrailer(ctx, movieID) {
             });
             promiseArray.push(prom);
         } catch (error2) {
-            // saveError(error2);
+            saveError(error2);
         }
     }
     await Promise.allSettled(promiseArray);
