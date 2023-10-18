@@ -49,6 +49,26 @@ export async function getMovieData(movieId, dataLevel = 'high', season = '') {
     }
 }
 
+export async function getSortedMovies(sortBase, dataLevel, page) {
+    try {
+        //sortBase:: animeTopComingSoon |
+        let types = 'serial-movie-anime_serial-anime_movie';
+        let result = await API.get(
+            `/movies/sortedMovies/${sortBase}/${types}/${dataLevel}/0-10/0-10/${page}?embedStaffAndCharacter=true&noUserStats=true`, {
+                cache: {
+                    ttl: 5 * 60 * 1000 //5 minute
+                }
+            });
+        return result.data.data;
+    } catch (error) {
+        if (error.response?.status === 404) {
+            return [];
+        }
+        saveError(error);
+        return 'error';
+    }
+}
+
 export async function getChannelNewsAndUpdates(requestType = 'newsAndUpdates', dataLevel = 'info') {
     try {
         //requestType: requestType | news | updates

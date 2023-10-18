@@ -1,24 +1,48 @@
 import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
-import {getMovieData, searchMovie} from "./api.js";
+import {getMovieData, getSortedMovies, searchMovie} from "./api.js";
 import {capitalize, encodersRegex} from "./utils.js";
+import {saveError} from "./saveError.js";
+import {sleep} from "./channel.js";
 
 
 const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
 
 export function getMenuButtons() {
     return Markup.keyboard([
-        ['🔍 Search', 'button 2'], // Row1 with 2 buttons
-        ['button 3', 'button 4'], // Row2 with 2 buttons
-        ['button 5', 'button 6', 'button 7'] // Row3 with 3 buttons
+        ['🔍 Search'],
+        ['🔥 Coming Soon Anime', '🔥 Airing Anime'],
+        ['🔥 Season Anime', '🔥 Upcoming Season Anime'],
+        ['🔥 Coming Soon', '🔥 Theaters'],
+        ['🔥 Top Likes', '🔥 Top Likes Of Month'],
+        ['🔥 Top Follow Of Month'],
     ]).resize();
 }
 
 export function handleMenuButtons(bot) {
     bot.action('Home', (ctx) => moveToMainMenu(ctx));
+    bot.hears('🏠 Home', (ctx) => moveToMainMenu(ctx));
 
     bot.hears('🔍 Search', (ctx) => ctx.reply('Type the name of title to search'));
+
+    bot.hears('🔥 Coming Soon Anime', (ctx) => sendSortedMovies(ctx, 'animeTopComingSoon'));
+    bot.hears('🔥 Airing Anime', (ctx) => sendSortedMovies(ctx, 'animeTopAiring'));
+    bot.hears('🔥 Season Anime', (ctx) => sendSortedMovies(ctx, 'animeSeasonNow'));
+    bot.hears('🔥 Upcoming Season Anime', (ctx) => sendSortedMovies(ctx, 'animeSeasonUpcoming'));
+    bot.hears('🔥 Coming Soon', (ctx) => sendSortedMovies(ctx, 'comingSoon'));
+    bot.hears('🔥 Theaters', (ctx) => sendSortedMovies(ctx, 'inTheaters'));
+    bot.hears('🔥 Top Likes', (ctx) => sendSortedMovies(ctx, 'like'));
+    bot.hears('🔥 Top Likes Of Month', (ctx) => sendSortedMovies(ctx, 'like_month'));
+    bot.hears('🔥 Top Follow Of Month', (ctx) => sendSortedMovies(ctx, 'follow_month'));
+
+    bot.hears('More...', (ctx) => {
+        if (ctx.session && ctx.session.sortBase) {
+            ctx.session.pageNumber++;
+            return sendSortedMovies(ctx, ctx.session.sortBase);
+        }
+        return handleMovieSearch(ctx);
+    });
 
     bot.action(/prev_/, (ctx) => {
         if (!ctx.session) {
@@ -54,6 +78,30 @@ export function handleMenuButtons(bot) {
     });
 }
 
+export async function sendSortedMovies(ctx, sortBase) {
+    if (!ctx.session || !ctx.session.sortBase) {
+        ctx.session = {
+            pageNumber: 1,
+            sortBase: sortBase,
+        };
+    } else if (ctx.session.sortBase !== sortBase) {
+        ctx.session.pageNumber = 1;
+        ctx.session.sortBase = sortBase;
+    }
+
+    await ctx.reply(`Fetching Movie Data (Page: ${ctx.session.pageNumber})`,
+        Markup.keyboard([['🏠 Home', 'More...']]).resize());
+    let movies = await getSortedMovies(sortBase, 'info', ctx.session.pageNumber);
+    if (movies === 'error') {
+        return await ctx.reply('Server Error on fetching Movies data');
+    } else if (movies.length === 0) {
+        return await ctx.reply('Movies not found!');
+    }
+    for (let i = 0; i < movies.length; i++) {
+        await sendMovieData(ctx, '', movies[i]);
+    }
+}
+
 export async function handleMovieData(ctx, movieID) {
     let data = (ctx.update.callback_query?.data || movieID || '').split('_');
     const {message_id} = await ctx.reply(`Fetching Movie Data`);
@@ -78,6 +126,10 @@ async function handleMovieSearch(ctx, title) {
     }
     let message = title || ctx.message.text;
     if (!title) {
+        ctx.session.pageNumber = 1;
+    }
+    if (ctx.session.sortBase) {
+        ctx.session.sortBase = '';
         ctx.session.pageNumber = 1;
     }
     const pageNumber = ctx.session.pageNumber;
@@ -129,17 +181,20 @@ async function handleMovieSearch(ctx, title) {
 }
 
 async function sendMovieData(ctx, message_id, movieData) {
-    await ctx.deleteMessage(message_id);
-
-    let movieID = movieData._id || movieData.movieID;
-    let trailerLink = '';
-    if (movieData.trailers) {
-        let trailer = movieData.trailers.filter(t => t.vpnStatus !== 'noVpn')[0];
-        if (trailer) {
-            trailerLink = `🎬 [Trailer](t.me/${config.botId}?start=trailer_${movieID})\n`;
+    try {
+        if (message_id) {
+            await ctx.deleteMessage(message_id);
         }
-    }
-    let caption = `
+
+        let movieID = movieData._id || movieData.movieID;
+        let trailerLink = '';
+        if (movieData.trailers) {
+            let trailer = movieData.trailers.filter(t => t.vpnStatus !== 'noVpn')[0];
+            if (trailer) {
+                trailerLink = `🎬 [Trailer](t.me/${config.botId}?start=trailer_${movieID})\n`;
+            }
+        }
+        let caption = `
 🎬 ${movieData.rawTitle}\n${trailerLink ? 'TRAILER' : ''}
 🔹 Type : ${capitalize(movieData.type)}\n
 🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} |MAL: ${movieData.rating.myAnimeList}\n
@@ -148,42 +203,60 @@ async function sendMovieData(ctx, message_id, movieData) {
 🎭 Actors : ${movieData.actorsAndCharacters.filter(item => !!item.staff).map(item => item.staff.name).join(', ')}\n
 📜 Summary : \n${(movieData.summary.persian || movieData.summary.english).slice(0, 150)}...\n\n`;
 
-    caption = caption.replace(/[()\[\]]/g, res => '\\' + res);
-    caption = caption.replace('TRAILER', trailerLink);
-    if (movieData.relatedTitles && movieData.relatedTitles.length > 0) {
-        caption += `🔗 Related: \n${movieData.relatedTitles.slice(0, 10).map(item => {
-            let title = `${item.rawTitle} \\(${item.year}\\) \\(${capitalize(item.relation)}\\)`;
-            return `\t\t\t🎬 [${title}](t.me/${config.botId}?start=movieID_${item._id})`;
-        }).join('\n')}\n\n`;
-    }
-
-    let movieTitle = movieData.title || movieData.rawTitle;
-    caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
-    if (config.webUrl) {
-        caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
-    }
-    if (config.channel) {
-        caption += `🆔 [@${config.channel}](t.me/${config.channel})`;
-    }
-    caption = caption.replace(/[!.*|{}#+=_-]/g, res => '\\' + res);
-
-    let replied = false;
-    for (let i = 0; i < movieData.posters.length; i++) {
-        try {
-            await ctx.replyWithPhoto(movieData.posters[i].url, {
-                caption: caption,
-                parse_mode: 'MarkdownV2',
-            });
-            replied = true;
-            break;
-        } catch (error2) {
-            saveError(error2);
+        caption = caption.replace(/[()\[\]]/g, res => '\\' + res);
+        caption = caption.replace('TRAILER', trailerLink);
+        if (movieData.relatedTitles && movieData.relatedTitles.length > 0) {
+            caption += `🔗 Related: \n${movieData.relatedTitles.slice(0, 10).map(item => {
+                let title = `${item.rawTitle} \\(${item.year}\\) \\(${capitalize(item.relation)}\\)`;
+                return `\t\t\t🎬 [${title}](t.me/${config.botId}?start=movieID_${item._id})`;
+            }).join('\n')}\n\n`;
         }
-    }
-    if (!replied) {
-        await ctx.reply(caption, {parse_mode: 'MarkdownV2',});
-    }
 
+        let movieTitle = movieData.title || movieData.rawTitle;
+        caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
+        if (config.webUrl) {
+            caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
+        }
+        if (config.channel) {
+            caption += `🆔 [@${config.channel}](t.me/${config.channel})`;
+        }
+        caption = caption.replace(/[!.*|{}#+=_-]/g, res => '\\' + res);
+
+        let replied = false;
+        for (let i = 0; i < movieData.posters.length; i++) {
+            try {
+                await ctx.replyWithPhoto(movieData.posters[i].url, {
+                    caption: caption,
+                    parse_mode: 'MarkdownV2',
+                });
+                replied = true;
+                break;
+            } catch (error2) {
+                if (error2.message.includes('Too Many Requests')) {
+                    let sleepAmount = Number(error2.message.match(/\d+$/g).pop());
+                    await sleep((sleepAmount + 1) && 1000);
+                    i--;
+                    continue;
+                }
+                if (
+                    error2.message !== '400: Bad Request: wrong file identifier/HTTP URL specified' &&
+                    error2.message !== '400: Bad Request: failed to get HTTP URL content'
+                ) {
+                    saveError(error2);
+                }
+            }
+        }
+        if (!replied) {
+            await ctx.reply(caption, {parse_mode: 'MarkdownV2',});
+        }
+    } catch (error) {
+        if (error.message && error.message.includes('Too Many Requests')) {
+            let sleepAmount = Number(error.message.match(/\d+$/g).pop());
+            await sleep((sleepAmount + 1) && 1000);
+            return await sendMovieData(ctx, message_id, movieData);
+        }
+        saveError(error);
+    }
 }
 
 export async function handleMovieDownload(ctx, text) {

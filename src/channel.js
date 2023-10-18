@@ -110,10 +110,15 @@ async function sendMovieDataToChannel(bot, movieData) {
             }
         }
     } catch (error) {
+        if (error.message && error.message.includes('Too Many Requests')) {
+            let sleepAmount = Number(error.message.match(/\d+$/g).pop());
+            await sleep((sleepAmount + 1) && 1000);
+            return await sendMovieDataToChannel(bot, movieData);
+        }
         saveError(error);
     }
 }
 
-async function sleep(ms) {
+export async function sleep(ms) {
     await new Promise(resolve => setTimeout(resolve, ms));
 }
