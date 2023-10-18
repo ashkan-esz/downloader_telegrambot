@@ -48,3 +48,22 @@ export async function getMovieData(movieId, dataLevel = 'high', season = '') {
         return 'error';
     }
 }
+
+export async function getChannelNewsAndUpdates(requestType = 'newsAndUpdates', dataLevel = 'info') {
+    try {
+        //requestType: requestType | news | updates
+        let types = 'serial-movie-anime_serial-anime_movie';
+        let result = await API.get(
+            `/movies/bots/${config.serverBotToken}/${requestType}/${types}/${dataLevel}/0-10/0-10?dontUpdateServerDate=false&embedStaffAndCharacter=true&noUserStats=true`, {
+                cache: false,
+            }
+        );
+        return result.data.data;
+    } catch (error) {
+        if (error.response?.status === 404) {
+            return [];
+        }
+        saveError(error);
+        return 'error';
+    }
+}

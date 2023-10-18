@@ -254,7 +254,8 @@ export async function handleMovieDownload(ctx, text) {
     }
     if (data.length === 3) {
         //show episodes
-        let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes || [];
+        let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes
+            .filter(e => e.links.length > 0) || [];
         if (episodes.length === 0) {
             return await ctx.telegram.editMessageText(
                 (ctx.update.callback_query || ctx.update).message.chat.id, message_id,

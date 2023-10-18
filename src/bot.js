@@ -4,6 +4,8 @@ import * as Sentry from "@sentry/node";
 import {ProfilingIntegration} from "@sentry/profiling-node";
 import {getMenuButtons, handleMenuButtons, handleMovieData, handleMovieDownload, sendTrailer} from "./menuButtons.js";
 import {saveError} from "./saveError.js";
+import {sendMoviesToChannel} from "./channel.js";
+import cron from "node-cron";
 
 if (!config.botToken) {
     throw new Error('"BOT_TOKEN" env var is required!');
@@ -67,6 +69,10 @@ bot.start(async (ctx) => {
         pageNumber: 1,
     };
     ctx.reply('Welcome', getMenuButtons());
+});
+
+cron.schedule('*/5 * * * *', () => {
+    sendMoviesToChannel(bot);
 });
 
 handleMenuButtons(bot);
