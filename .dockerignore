@@ -1,0 +1,16 @@
+.env
+.idea
+node_modules
+node_modules/*
+npm-debug.log
+build
+.git
+*.md
+.gitignore
+test.html
+test.js
+*.env
+.cache
+coverage
+readme
+temp
