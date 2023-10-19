@@ -29,6 +29,22 @@ async function sendMovieDataToChannel(bot, movieData) {
     try {
         let movieID = movieData._id || movieData.movieID;
         let updateReason = movieData.latestData.updateReason; //'season' | 'episode' | 'quality'
+
+        if (movieData.type.includes('movie') &&
+            updateReason === 'quality' &&
+            (
+                Number(movieData.year) < (new Date().getFullYear()) ||
+                !movieData.latestData.quality.match(/(1080p\.(x265|10bit))|(2160p)/i) ||
+                (Date.now() - new Date(movieData.insert_date).getTime()) < 2 * 60 * 60 * 1000 //2 hour
+            )) {
+            return;
+        }
+        if (movieData.type.includes('serial') &&
+            updateReason === 'quality' &&
+            !movieData.latestData.quality.match(/(1080p\.(x265|10bit))|(2160p)/i)) {
+            return;
+        }
+
         let quality = movieData.latestData.quality.split(' - ')[0];
         let update = movieData.type.includes('movie')
             ? quality
@@ -62,6 +78,7 @@ async function sendMovieDataToChannel(bot, movieData) {
         caption = caption.replace(/[!.*|{}#+=_-]/g, res => '\\' + res);
 
         let replied = false;
+        movieData.posters = movieData.posters.sort((a,b) => b.size - a.size);
         for (let i = 0; i < movieData.posters.length; i++) {
             try {
                 await bot.telegram.sendPhoto('@' + config.channel, movieData.posters[i].url, {

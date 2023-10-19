@@ -12,10 +12,10 @@ const API = setupCache(
     }
 );
 
-export async function searchMovie(title, page) {
+export async function searchMovie(title, dataLevel, page) {
     try {
         let result = await API.get(
-            `/movies/searchMovie/low/${page}?title=${title}&noUserStats=true`, {
+            `/movies/searchMovie/${dataLevel}/${page}?title=${title}&noUserStats=true`, {
                 cache: {
                     ttl: 5 * 60 * 1000 //5 minute
                 }

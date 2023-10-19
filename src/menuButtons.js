@@ -146,7 +146,7 @@ async function handleMovieSearch(ctx, title) {
         lastMessageId = message_id;
     }
 
-    let searchResult = await searchMovie(message, pageNumber);
+    let searchResult = await searchMovie(message, 'low', pageNumber);
 
     if (searchResult === 'error') {
         return ctx.reply(`Server error on searching \"${message}\"`);
@@ -223,6 +223,7 @@ async function sendMovieData(ctx, message_id, movieData) {
         caption = caption.replace(/[!.*|{}#+=_-]/g, res => '\\' + res);
 
         let replied = false;
+        movieData.posters = movieData.posters.sort((a, b) => b.size - a.size);
         for (let i = 0; i < movieData.posters.length; i++) {
             try {
                 await ctx.replyWithPhoto(movieData.posters[i].url, {
@@ -329,6 +330,9 @@ export async function handleMovieDownload(ctx, text) {
         //show episodes
         let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes
             .filter(e => e.links.length > 0) || [];
+        if (episodes.length > 200) {
+            episodes = episodes.slice(episodes.length - 200);
+        }
         if (episodes.length === 0) {
             return await ctx.telegram.editMessageText(
                 (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
@@ -348,9 +352,6 @@ export async function handleMovieDownload(ctx, text) {
 
     //show download links
     let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes || [];
-    if (episodes.length > 200) {
-        episodes = episodes.slice(episodes.length - 200);
-    }
     let links = episodes.find(e => e.episodeNumber === Number(data[3]))?.links || [];
     if (links.length === 0) {
         return await ctx.telegram.editMessageText(
