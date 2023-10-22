@@ -12,6 +12,7 @@ export async function sendMoviesToChannel(bot) {
             if (movies && movies !== 'error') {
                 for (let i = 0; i < movies.length; i++) {
                     await sendMovieDataToChannel(bot, movies[i]);
+                    await sleep(1000);
                 }
                 break;
             } else if (movies === 'error') {

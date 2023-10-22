@@ -99,6 +99,7 @@ export async function sendSortedMovies(ctx, sortBase) {
     }
     for (let i = 0; i < movies.length; i++) {
         await sendMovieData(ctx, '', movies[i]);
+        await sleep(1000);
     }
 }
 
@@ -315,10 +316,11 @@ export async function handleMovieDownload(ctx, text) {
                     undefined, `\"${movieData.rawTitle}\" => No Season Found!`);
             }
 
-            let buttons = movieData.seasons.map(s => Markup.button.callback(
-                `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
-                'download_' + data[0] + '_' + data[1] + '_' + s.seasonNumber,
-            ));
+            let buttons = movieData.seasons.filter(s => s.episodes.find(e => e.links.length > 0))
+                .map(s => Markup.button.callback(
+                    `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
+                    'download_' + data[0] + '_' + data[1] + '_' + s.seasonNumber,
+                ));
 
             return await ctx.telegram.editMessageText(
                 (ctx.update.callback_query || ctx.update).message.chat.id, message_id,

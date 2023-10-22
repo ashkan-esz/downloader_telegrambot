@@ -114,11 +114,14 @@ bot.on('inline_query', async (ctx) => {
                     if (movieData.seasons.length > 0) {
                         if (se === 'd') {
                             //choose season
-                            let buttons = movieData.seasons.map(s => Markup.button.url(
-                                `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
-                                `t.me/${config.botId}?start=download_` + item._id + '_' + item.type + '_' + s.seasonNumber,
-                            ));
-                            return Markup.inlineKeyboard([...buttons], {columns: 2});
+                            let buttons = movieData.seasons.filter(s => s.episodes.find(e => e.links.length > 0))
+                                .map(s => Markup.button.url(
+                                    `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
+                                    `t.me/${config.botId}?start=download_` + item._id + '_' + item.type + '_' + s.seasonNumber,
+                                ));
+                            if (buttons.length > 0) {
+                                return Markup.inlineKeyboard([...buttons], {columns: 2});
+                            }
                         }
 
                         let [_, season, episode] = se.split(/s |e /g);
