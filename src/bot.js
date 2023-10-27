@@ -134,7 +134,7 @@ bot.on('inline_query', async (ctx) => {
                             //choose episode
                             if (episodes.length > 0) {
                                 let buttons = episodes.map(e => Markup.button.url(
-                                    `Episode ${e.episodeNumber} ${(e.title && e.title !== 'unknown' && !e.title.match(/episode \d/i)) ? `(${e.title})` : ''}`,
+                                    `Epi ${e.episodeNumber} ${(e.title && e.title !== 'unknown' && !e.title.match(/episode \d/i)) ? `(${e.title})` : ''}`,
                                     `t.me/${config.botId}?start=download_` + item._id + '_' + item.type + '_' + season + '_' + e.episodeNumber,
                                 ));
                                 return Markup.inlineKeyboard([...buttons], {columns: 3});

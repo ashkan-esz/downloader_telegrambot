@@ -1,7 +1,7 @@
 import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
-import {getMovieData, getSortedMovies, searchMovie} from "./api.js";
+import {getMovieData, getNewsAndUpdates, getSortedMovies, searchMovie} from "./api.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
 import {sleep} from "./channel.js";
@@ -12,6 +12,7 @@ const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
 export function getMenuButtons() {
     return Markup.keyboard([
         ['🔍 Search'],
+        ['🔥 News', '🔥 Updates'],
         ['🔥 Coming Soon Anime', '🔥 Airing Anime'],
         ['🔥 Season Anime', '🔥 Upcoming Season Anime'],
         ['🔥 Coming Soon', '🔥 Theaters'],
@@ -35,6 +36,8 @@ export function handleMenuButtons(bot) {
     bot.hears('🔥 Top Likes', (ctx) => sendSortedMovies(ctx, 'like'));
     bot.hears('🔥 Top Likes Of Month', (ctx) => sendSortedMovies(ctx, 'like_month'));
     bot.hears('🔥 Top Follow Of Month', (ctx) => sendSortedMovies(ctx, 'follow_month'));
+    bot.hears('🔥 News', (ctx) => sendSortedMovies(ctx, 'news'));
+    bot.hears('🔥 Updates', (ctx) => sendSortedMovies(ctx, 'updates'));
 
     bot.hears('More...', (ctx) => {
         if (ctx.session && ctx.session.sortBase) {
@@ -91,7 +94,9 @@ export async function sendSortedMovies(ctx, sortBase) {
 
     await ctx.reply(`Fetching Movie Data (Page: ${ctx.session.pageNumber})`,
         Markup.keyboard([['🏠 Home', 'More...']]).resize());
-    let movies = await getSortedMovies(sortBase, 'info', ctx.session.pageNumber);
+    let movies = (sortBase === 'news' || sortBase === 'updates')
+        ?  await getNewsAndUpdates(sortBase, 'info', ctx.session.pageNumber)
+        :  await getSortedMovies(sortBase, 'info', ctx.session.pageNumber);
     if (movies === 'error') {
         return await ctx.reply('Server Error on fetching Movies data');
     } else if (movies.length === 0) {
@@ -342,7 +347,7 @@ export async function handleMovieDownload(ctx, text) {
         }
 
         let buttons = episodes.map(e => Markup.button.callback(
-            `Episode ${e.episodeNumber} ${(e.title && e.title !== 'unknown' && !e.title.match(/episode \d/i)) ? `(${e.title})` : ''}`,
+            `Epi ${e.episodeNumber} ${(e.title && e.title !== 'unknown' && !e.title.match(/episode \d/i)) ? `(${e.title})` : ''}`,
             'download_' + data[0] + '_' + data[1] + '_' + data[2] + '_' + e.episodeNumber,
         ));
 
