@@ -76,7 +76,7 @@ async function sendMovieDataToChannel(bot, movieData) {
         if (config.channel) {
             caption += `🆔 [@${config.channel}](t.me/${config.channel})`;
         }
-        caption = caption.replace(/[!.*|{}#+=_-]/g, res => '\\' + res);
+        caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
 
         let replied = false;
         movieData.posters = movieData.posters.sort((a,b) => b.size - a.size);

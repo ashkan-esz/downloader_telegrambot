@@ -108,3 +108,21 @@ export async function getChannelNewsAndUpdates(requestType = 'newsAndUpdates', d
         return 'error';
     }
 }
+
+export async function getApps() {
+    try {
+        let result = await API.get('utils/getApps', {
+                cache: {
+                    ttl: 5 * 60 * 1000 //5 minute
+                }
+            }
+        );
+        return result.data.data;
+    } catch (error) {
+        if (error.response?.status === 404) {
+            return [];
+        }
+        saveError(error);
+        return 'error';
+    }
+}

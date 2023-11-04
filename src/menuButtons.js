@@ -1,7 +1,7 @@
 import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
-import {getMovieData, getNewsAndUpdates, getSortedMovies, searchMovie} from "./api.js";
+import {getApps, getMovieData, getNewsAndUpdates, getSortedMovies, searchMovie} from "./api.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
 import {sleep} from "./channel.js";
@@ -18,6 +18,7 @@ export function getMenuButtons() {
         ['🔥 Coming Soon', '🔥 Theaters'],
         ['🔥 Top Likes', '🔥 Top Likes Of Month'],
         ['🔥 Top Follow Of Month'],
+        ['Apps'],
     ]).resize();
 }
 
@@ -38,6 +39,8 @@ export function handleMenuButtons(bot) {
     bot.hears('🔥 Top Follow Of Month', (ctx) => sendSortedMovies(ctx, 'follow_month'));
     bot.hears('🔥 News', (ctx) => sendSortedMovies(ctx, 'news'));
     bot.hears('🔥 Updates', (ctx) => sendSortedMovies(ctx, 'updates'));
+
+    bot.hears('Apps', (ctx) => sendApps(ctx));
 
     bot.hears('More...', (ctx) => {
         if (ctx.session && ctx.session.sortBase) {
@@ -95,8 +98,8 @@ export async function sendSortedMovies(ctx, sortBase) {
     await ctx.reply(`Fetching Movie Data (Page: ${ctx.session.pageNumber})`,
         Markup.keyboard([['🏠 Home', 'More...']]).resize());
     let movies = (sortBase === 'news' || sortBase === 'updates')
-        ?  await getNewsAndUpdates(sortBase, 'info', ctx.session.pageNumber)
-        :  await getSortedMovies(sortBase, 'info', ctx.session.pageNumber);
+        ? await getNewsAndUpdates(sortBase, 'info', ctx.session.pageNumber)
+        : await getSortedMovies(sortBase, 'info', ctx.session.pageNumber);
     if (movies === 'error') {
         return await ctx.reply('Server Error on fetching Movies data');
     } else if (movies.length === 0) {
@@ -226,7 +229,7 @@ async function sendMovieData(ctx, message_id, movieData) {
         if (config.channel) {
             caption += `🆔 [@${config.channel}](t.me/${config.channel})`;
         }
-        caption = caption.replace(/[!.*|{}#+=_-]/g, res => '\\' + res);
+        caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
 
         let replied = false;
         movieData.posters = movieData.posters.sort((a, b) => b.size - a.size);
@@ -414,6 +417,25 @@ export async function sendTrailer(ctx, movieID) {
             undefined, 'Error on uploading trailers');
     }
     await ctx.deleteMessage(message_id);
+}
+
+async function sendApps(ctx) {
+    let apps = await getApps();
+    if (apps === 'error') {
+        return await ctx.reply('Server Error on fetching Apps data');
+    } else if (apps.length === 0) {
+        return await ctx.reply('Apps not found!');
+    }
+    let text = '';
+    for (let i = 0; i < apps.length; i++) {
+        text += `${apps[i].appName} | ${apps[i].os}`;
+        let version = apps[i].versions[0];
+        if (version) {
+            text += ` | ver ${version.version} --> [Download \\(${(version.fileData.size / 1024 / 1024).toFixed(1)}MB\\)](${version.fileData.url})\n\n`;
+        }
+    }
+    text = text.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
+    await ctx.reply(text, {parse_mode: 'MarkdownV2'});
 }
 
 function getPaginationButtons(ctx, searchResult, data) {
