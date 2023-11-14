@@ -14,5 +14,6 @@ FROM alpine
 RUN apk add --no-cache --update nodejs npm
 COPY --from=build /usr/app /
 
+ENV NODE_ENV=production
 
 CMD [ "node", "src/bot.js"]
