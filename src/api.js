@@ -22,10 +22,7 @@ export async function searchMovie(title, dataLevel, page) {
             });
         return result.data.data;
     } catch (error) {
-        if (error.response?.status === 404) {
-            return [];
-        }
-        saveError(error);
+        handleError(error);
         return 'error';
     }
 }
@@ -41,10 +38,7 @@ export async function getMovieData(movieId, dataLevel = 'high', season = '') {
             });
         return result.data.data;
     } catch (error) {
-        if (error.response?.status === 404) {
-            return null;
-        }
-        saveError(error);
+        handleError(error, false);
         return 'error';
     }
 }
@@ -61,10 +55,7 @@ export async function getSortedMovies(sortBase, dataLevel, page) {
             });
         return result.data.data;
     } catch (error) {
-        if (error.response?.status === 404) {
-            return [];
-        }
-        saveError(error);
+        handleError(error);
         return 'error';
     }
 }
@@ -82,10 +73,7 @@ export async function getNewsAndUpdates(apiName = 'news', dataLevel = 'info', pa
         );
         return result.data.data;
     } catch (error) {
-        if (error.response?.status === 404) {
-            return [];
-        }
-        saveError(error);
+        handleError(error);
         return 'error';
     }
 }
@@ -101,10 +89,7 @@ export async function getChannelNewsAndUpdates(requestType = 'newsAndUpdates', d
         );
         return result.data.data;
     } catch (error) {
-        if (error.response?.status === 404) {
-            return [];
-        }
-        saveError(error);
+        handleError(error);
         return 'error';
     }
 }
@@ -119,10 +104,19 @@ export async function getApps() {
         );
         return result.data.data;
     } catch (error) {
-        if (error.response?.status === 404) {
-            return [];
-        }
-        saveError(error);
+        handleError(error);
         return 'error';
+    }
+}
+
+function handleError(error, isResultArray = true) {
+    if (error.response?.status === 404) {
+        return isResultArray ? [] : null;
+    }
+    if (error.response?.status === 502) {
+        console.log(error.toString());
+        saveError(error, true);
+    } else {
+        saveError(error);
     }
 }
