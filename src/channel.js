@@ -46,11 +46,20 @@ async function sendMovieDataToChannel(bot, movieData) {
             return;
         }
 
-        let quality = movieData.latestData.quality.split(' - ')[0];
+        const newReleaseOrSeason = movieData.update_date === 0 || updateReason === 'season';
+        const quality = movieData.latestData.quality.split(' - ')[0];
         let update = movieData.type.includes('movie')
             ? quality
             : `S${movieData.latestData.season}E${movieData.latestData.episode}: ${quality}`;
-        let caption = `
+        let caption = '';
+        if (!newReleaseOrSeason) {
+            caption = `
+🎬 ${movieData.rawTitle}\n
+🔹 Type : ${capitalize(movieData.type)}\n
+🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} |MAL: ${movieData.rating.myAnimeList}\n
+🖥 Update: ${update}\n\n`;
+        } else {
+            caption = `
 🎬 ${movieData.rawTitle}\n
 🔹 Type : ${capitalize(movieData.type)}\n
 🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} |MAL: ${movieData.rating.myAnimeList}\n
@@ -59,9 +68,10 @@ async function sendMovieDataToChannel(bot, movieData) {
 ⭕️ Genre : ${movieData.genres.slice(0, 6).map(g => capitalize(g)).join(', ')}\n
 🎭 Actors : ${movieData.actorsAndCharacters.filter(item => !!item.staff).slice(0, 5).map(item => item.staff.name).join(', ')}\n
 📜 Summary : \n${(movieData.summary.persian || movieData.summary.english).slice(0, 150)}...\n\n`;
+        }
 
         caption = caption.replace(/[()\[\]]/g, res => '\\' + res);
-        if (movieData.relatedTitles && movieData.relatedTitles.length > 0) {
+        if (movieData.relatedTitles && movieData.relatedTitles.length > 0 && newReleaseOrSeason) {
             caption += `🔗 Related: \n${movieData.relatedTitles.slice(0, 10).map(item => {
                 let title = `${item.rawTitle} \\(${item.year}\\) \\(${capitalize(item.relation)}\\)`;
                 return `\t\t\t🎬 [${title}](t.me/${config.botId}?start=movieID_${item._id})`;
@@ -69,7 +79,17 @@ async function sendMovieDataToChannel(bot, movieData) {
         }
 
         let movieTitle = movieData.title || movieData.rawTitle;
-        caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
+        if (newReleaseOrSeason) {
+            caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
+        } else {
+            caption += `📥 [Info](t.me/${config.botId}?start=movieID_${movieID}_${movieData.type})`;
+            caption += ` || [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})`;
+            if (movieData.type.includes('serial')) {
+                caption += ` || [S${movieData.latestData.season}E${movieData.latestData.episode}](t.me/${config.botId}?start=download_${movieID}_${movieData.type}_${movieData.latestData.season}_${movieData.latestData.episode})\n`;
+            } else {
+                caption += '\n';
+            }
+        }
         if (config.webUrl) {
             caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
         }
@@ -79,7 +99,7 @@ async function sendMovieDataToChannel(bot, movieData) {
         caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
 
         let replied = false;
-        movieData.posters = movieData.posters.sort((a,b) => b.size - a.size);
+        movieData.posters = movieData.posters.sort((a, b) => b.size - a.size);
         for (let i = 0; i < movieData.posters.length; i++) {
             try {
                 await bot.telegram.sendPhoto('@' + config.channel, movieData.posters[i].url, {
