@@ -105,6 +105,9 @@ async function sendMovieDataToChannel(bot, movieData) {
         if (config.webUrl) {
             caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
         }
+        if (config.appDeepLink) {
+            caption += `📱 [App](${config.appDeepLink}/${movieData.type}/${movieID}/${movieData.year})\n`;
+        }
         if (config.channel) {
             caption += `🆔 [@${config.channel}](t.me/${config.channel})`;
         }
