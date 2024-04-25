@@ -324,7 +324,7 @@ export async function handleMovieDownload(ctx, text) {
                     undefined, `\"${movieData.rawTitle}\" => No Season Found!`);
             }
 
-            let buttons = movieData.seasons.filter(s => s.episodes.find(e => e.links.length > 0))
+            let buttons = movieData.seasons.filter(s => s.episodes.find(e => e.links.length > 0 || e.torrentLinks.length > 0))
                 .map(s => Markup.button.callback(
                     `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
                     'download_' + data[0] + '_' + data[1] + '_' + s.seasonNumber,
@@ -339,7 +339,7 @@ export async function handleMovieDownload(ctx, text) {
     if (data.length === 3) {
         //show episodes
         let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes
-            .filter(e => e.links.length > 0) || [];
+            .filter(e => e.links.length > 0 || e.torrentLinks.length > 0) || [];
         if (episodes.length > 200) {
             episodes = episodes.slice(episodes.length - 200);
         }
@@ -363,7 +363,8 @@ export async function handleMovieDownload(ctx, text) {
     //show download links
     let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes || [];
     let links = episodes.find(e => e.episodeNumber === Number(data[3]))?.links || [];
-    if (links.length === 0) {
+    let torrentLinks = episodes.find(e => e.episodeNumber === Number(data[3]))?.torrentLinks || [];
+    if (links.length === 0 && torrentLinks.length === 0) {
         return await ctx.telegram.editMessageText(
             (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
             undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => No Download Link Found!`);
@@ -373,11 +374,20 @@ export async function handleMovieDownload(ctx, text) {
         `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
         l.link
     ));
+    let torrentButtons = torrentLinks.filter(l => l.type !== "magnet").map(l => Markup.button.url(
+        `[Torrent]: ${l.info}`,
+        l.link
+    ));
+    let torrentDirectButtons = torrentLinks.filter(l => l.localLink).map(l => Markup.button.url(
+        `[Torrent:LocalLink]: ${l.info}`,
+        config.localDownloadUrl + '/' + l.localLink.replace(/^\//, '')
+    ));
 
+    const columns = torrentButtons.length > 0 ? 1 : 2;
     return await ctx.telegram.editMessageText(
         (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
         undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => Download Links`,
-        Markup.inlineKeyboard([...buttons], {columns: 2}),
+        Markup.inlineKeyboard([...buttons, ...torrentButtons, ...torrentDirectButtons], {columns: columns}),
     );
 }
 

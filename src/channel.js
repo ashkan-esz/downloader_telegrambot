@@ -51,6 +51,9 @@ async function sendMovieDataToChannel(bot, movieData) {
         let update = movieData.type.includes('movie')
             ? quality
             : `S${movieData.latestData.season}E${movieData.latestData.episode}: ${quality}`;
+        if (movieData.latestData.updateReason.includes('torrent')) {
+            update = movieData.latestData.torrentLinks.toUpperCase() + " (Torrent)";
+        }
         let caption = '';
         if (!newReleaseOrSeason) {
             caption = `
@@ -85,7 +88,16 @@ async function sendMovieDataToChannel(bot, movieData) {
             caption += `📥 [Info](t.me/${config.botId}?start=movieID_${movieID}_${movieData.type})`;
             caption += ` || [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})`;
             if (movieData.type.includes('serial')) {
-                caption += ` || [S${movieData.latestData.season}E${movieData.latestData.episode}](t.me/${config.botId}?start=download_${movieID}_${movieData.type}_${movieData.latestData.season}_${movieData.latestData.episode})\n`;
+                let [_, torrent_s, torrent_e] = movieData.latestData.torrentLinks.split(/[se]/g);
+                let season = movieData.latestData.season;
+                let episode = movieData.latestData.episode;
+                torrent_s = Number(torrent_s);
+                torrent_e = Number(torrent_e);
+                if (torrent_s > season || (torrent_s === season && torrent_e > episode)) {
+                    season = torrent_s;
+                    episode = torrent_e;
+                }
+                caption += ` || [S${season}E${episode}](t.me/${config.botId}?start=download_${movieID}_${movieData.type}_${season}_${episode})\n`;
             } else {
                 caption += '\n';
             }

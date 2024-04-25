@@ -9,6 +9,8 @@ export default Object.freeze({
     serverBotToken: process.env.SERVER_BOT_TOKEN,
     apiUrl: process.env.API_URL,
     webUrl: process.env.WEB_URL,
+    localDownloadUrl: process.env.LOCAL_DOWNLOAD_URL,
+    appDeepLink: process.env.APP_DEEP_LINK,
     channel: process.env.CHANNEL,
     botId: process.env.BOT_ID,
     sentryDns: process.env.SENTRY_DNS,
