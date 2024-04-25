@@ -1,5 +1,5 @@
 # stage 1
-FROM node:18.16.0-alpine AS build
+FROM node:20.10.0-alpine AS build
 
 ENV NODE_ENV=production
 
