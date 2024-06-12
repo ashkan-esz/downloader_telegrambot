@@ -48,12 +48,20 @@ async function sendMovieDataToChannel(bot, movieData) {
 
         const newReleaseOrSeason = movieData.update_date === 0 || updateReason === 'season';
         const quality = movieData.latestData.quality.split(' - ')[0];
-        let update = movieData.type.includes('movie')
-            ? quality
-            : `S${movieData.latestData.season}E${movieData.latestData.episode}: ${quality}`;
-        if (movieData.latestData.updateReason.includes('torrent')) {
-            update = movieData.latestData.torrentLinks.toUpperCase() + " (Torrent)";
+        let update = quality;
+        if (movieData.type.includes('serial')) {
+            let latestSeason = movieData.latestData.season;
+            let latestEpisode = movieData.latestData.episode;
+            update = `S${latestSeason}E${latestEpisode}: ${quality}`;
+
+            if (movieData.latestData.torrentLinks) {
+                let [_, torrentSeason, torrentEpisode] = movieData.latestData.torrentLinks.split(/[se]/gi).map(item => Number(item));
+                if (latestSeason < torrentSeason || (latestSeason === torrentSeason && latestEpisode < torrentEpisode)) {
+                    update = movieData.latestData.torrentLinks.toUpperCase() + " (Torrent)";
+                }
+            }
         }
+
         let caption = '';
         if (!newReleaseOrSeason) {
             caption = `
