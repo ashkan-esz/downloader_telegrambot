@@ -83,7 +83,7 @@ export async function getChannelNewsAndUpdates(requestType = 'newsAndUpdates', d
         //requestType: requestType | news | updates
         let types = 'serial-movie-anime_serial-anime_movie';
         let result = await API.get(
-            `/movies/bots/${config.serverBotToken}/${requestType}/${types}/${dataLevel}/0-10/0-10?dontUpdateServerDate=false&embedStaffAndCharacter=true&noUserStats=true`, {
+            `/movies/bots/${config.serverBotToken}/${requestType}/${types}/${dataLevel}/${config.minIMDBRate}-10/${config.minMALRate}-10?dontUpdateServerDate=false&embedStaffAndCharacter=true&noUserStats=true`, {
                 cache: false,
             }
         );

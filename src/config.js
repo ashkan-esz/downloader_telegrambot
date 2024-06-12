@@ -14,4 +14,7 @@ export default Object.freeze({
     channel: process.env.CHANNEL,
     botId: process.env.BOT_ID,
     sentryDns: process.env.SENTRY_DNS,
+    minIMDBRate: Number(process.env.MIN_IMDB_RATE || 0),
+    minMALRate: Number(process.env.MIN_MAL_RATE || 0),
+    initialSleepMinute: Number(process.env.INITIAL_SLEEP_MINUTE || 2),
 });

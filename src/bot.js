@@ -14,7 +14,7 @@ if (!config.botToken) {
 }
 
 if (config.nodeEnv !== 'dev') {
-    await sleep(2 * 60 * 1000);
+    await sleep(config.initialSleepMinute * 60 * 1000);
 }
 
 Sentry.init({
