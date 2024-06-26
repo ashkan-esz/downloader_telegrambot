@@ -104,8 +104,7 @@ export async function getApps() {
         );
         return result.data.data;
     } catch (error) {
-        handleError(error);
-        return 'error';
+       return  handleError(error);
     }
 }
 
@@ -119,4 +118,5 @@ function handleError(error, isResultArray = true) {
     } else {
         saveError(error);
     }
+    return 'error';
 }

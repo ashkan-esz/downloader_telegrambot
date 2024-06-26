@@ -206,7 +206,7 @@ async function sendMovieData(ctx, message_id, movieData) {
         let caption = `
 🎬 ${movieData.rawTitle}\n${trailerLink ? 'TRAILER' : ''}
 🔹 Type : ${capitalize(movieData.type)}\n
-🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} |MAL: ${movieData.rating.myAnimeList}\n
+🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
 📅 Year : ${movieData.year}\n
 ⭕️ Genre : ${movieData.genres.map(g => capitalize(g)).join(', ')}\n
 🎭 Actors : ${movieData.actorsAndCharacters.filter(item => !!item.staff).map(item => item.staff.name).join(', ')}\n
@@ -434,6 +434,9 @@ export async function sendTrailer(ctx, movieID) {
 
 async function sendApps(ctx) {
     let apps = await getApps();
+    if (config.appsDownloadLink) {
+        await ctx.reply('Check: https://github.com/ashkan-esz/downloader_app/releases/tag/release');
+    }
     if (apps === 'error') {
         return await ctx.reply('Server Error on fetching Apps data');
     } else if (apps.length === 0) {

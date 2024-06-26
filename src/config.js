@@ -17,4 +17,5 @@ export default Object.freeze({
     minIMDBRate: Number(process.env.MIN_IMDB_RATE || 0),
     minMALRate: Number(process.env.MIN_MAL_RATE || 0),
     initialSleepMinute: Number(process.env.INITIAL_SLEEP_MINUTE || 2),
+    appsDownloadLink: process.env.APPS_DOWNLOAD_LINK,
 });

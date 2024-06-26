@@ -67,13 +67,13 @@ async function sendMovieDataToChannel(bot, movieData) {
             caption = `
 🎬 ${movieData.rawTitle}\n
 🔹 Type : ${capitalize(movieData.type)}\n
-🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} |MAL: ${movieData.rating.myAnimeList}\n
+🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
 🖥 Update: ${update}\n\n`;
         } else {
             caption = `
 🎬 ${movieData.rawTitle}\n
 🔹 Type : ${capitalize(movieData.type)}\n
-🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} |MAL: ${movieData.rating.myAnimeList}\n
+🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
 🖥 Update: ${update}\n
 📅 Year : ${movieData.year}\n
 ⭕️ Genre : ${movieData.genres.slice(0, 6).map(g => capitalize(g)).join(', ')}\n
