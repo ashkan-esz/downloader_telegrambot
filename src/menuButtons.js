@@ -18,7 +18,7 @@ export function getMenuButtons() {
         ['🔥 Coming Soon', '🔥 Theaters'],
         ['🔥 Top Likes', '🔥 Top Likes Of Month'],
         ['🔥 Top Follow Of Month'],
-        ['Apps'],
+        ['📕 Instruction', 'Apps'],
     ]).resize();
 }
 
@@ -40,6 +40,7 @@ export function handleMenuButtons(bot) {
     bot.hears('🔥 News', (ctx) => sendSortedMovies(ctx, 'news'));
     bot.hears('🔥 Updates', (ctx) => sendSortedMovies(ctx, 'updates'));
 
+    bot.hears('📕 Instruction', (ctx) => sendInstruction(ctx));
     bot.hears('Apps', (ctx) => sendApps(ctx));
 
     bot.hears('More...', (ctx) => {
@@ -300,24 +301,17 @@ export async function handleMovieDownload(ctx, text) {
         //show seasons / movies download links
         if (data[1].includes('movie')) {
             //its movies download link
-            let links = movieData.qualities.map(q => q.links).flat(1);
-            if (links.length === 0) {
+            let {links, torrentLinks, buttons, columns} = createMoviesDownloadLinksButtons(movieData.qualities);
+            if (links.length === 0 && torrentLinks.length === 0) {
                 return await ctx.telegram.editMessageText(
                     (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
                     undefined, `\"${movieData.rawTitle}\" => No Download Link Found!`);
             }
 
-            let noCensoredLinks = links.filter(l => !l.info.toLowerCase().includes('censored'));
-
-            let buttons = noCensoredLinks.map(l => Markup.button.url(
-                `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
-                l.link
-            ));
-
             return await ctx.telegram.editMessageText(
                 (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
                 undefined, `\"${movieData.rawTitle}\" => Download Links`,
-                Markup.inlineKeyboard([...buttons], {columns: 2}),
+                Markup.inlineKeyboard(buttons, {columns: columns}),
             );
         } else {
             //its serial, choose season
@@ -327,51 +321,112 @@ export async function handleMovieDownload(ctx, text) {
                     undefined, `\"${movieData.rawTitle}\" => No Season Found!`);
             }
 
-            let buttons = movieData.seasons.filter(s => s.episodes.find(e => e.links.length > 0 || e.torrentLinks.length > 0))
-                .map(s => Markup.button.callback(
-                    `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
-                    'download_' + data[0] + '_' + data[1] + '_' + s.seasonNumber,
-                ));
+            let {buttons, columns} = createSeasonButtons(movieData.seasons, data[0], data[1]);
 
             return await ctx.telegram.editMessageText(
                 (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
                 undefined, `\"${movieData.rawTitle}\" => Choose Season`,
-                Markup.inlineKeyboard([...buttons], {columns: 2}));
+                Markup.inlineKeyboard([...buttons], {columns: columns}));
         }
     }
     if (data.length === 3) {
         //show episodes
-        let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes
-            .filter(e => e.links.length > 0 || e.torrentLinks.length > 0) || [];
-        if (episodes.length > 200) {
-            episodes = episodes.slice(episodes.length - 200);
-        }
+        let {buttons, episodes, columns} = createEpisodesButtons(movieData.seasons, data[0], data[1], Number(data[2]));
         if (episodes.length === 0) {
             return await ctx.telegram.editMessageText(
                 (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
                 undefined, `\"${movieData.rawTitle}\" (Season: ${data[2]}) => No Episode Found!`);
         }
 
-        let buttons = episodes.map(e => Markup.button.callback(
-            `Epi ${e.episodeNumber} ${(e.title && e.title !== 'unknown' && !e.title.match(/episode \d/i)) ? `(${e.title})` : ''}`,
-            'download_' + data[0] + '_' + data[1] + '_' + data[2] + '_' + e.episodeNumber,
-        ));
-
         return await ctx.telegram.editMessageText(
             (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
             undefined, `\"${movieData.rawTitle}\" (Season: ${data[2]}) => Choose Episode`,
-            Markup.inlineKeyboard([...buttons], {columns: 3}));
+            Markup.inlineKeyboard([...buttons], {columns: columns}));
     }
 
     //show download links
-    let episodes = movieData.seasons.find(item => item.seasonNumber === Number(data[2]))?.episodes || [];
-    let links = episodes.find(e => e.episodeNumber === Number(data[3]))?.links || [];
-    let torrentLinks = episodes.find(e => e.episodeNumber === Number(data[3]))?.torrentLinks || [];
+    let {
+        links,
+        torrentLinks,
+        buttons,
+        columns
+    } = createSerialsDownloadLinkButtons(movieData.seasons, Number(data[2]), Number(data[3]));
     if (links.length === 0 && torrentLinks.length === 0) {
         return await ctx.telegram.editMessageText(
             (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
             undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => No Download Link Found!`);
     }
+
+    return await ctx.telegram.editMessageText(
+        (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+        undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => Download Links`,
+        Markup.inlineKeyboard(buttons, {columns: columns}),
+    );
+}
+
+export function createMoviesDownloadLinksButtons(qualities) {
+    let links = qualities.map(q => q.links).flat(1);
+    let torrentLinks = qualities.map(q => q.torrentLinks).flat(1);
+
+    let buttons = links
+        .filter(l => !l.info.toLowerCase().includes('censored'))
+        .map(l => Markup.button.url(
+            `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
+            l.link
+        ));
+    let torrentButtons = torrentLinks.filter(l => l.type !== "magnet").map(l => Markup.button.url(
+        `[Torrent]: ${l.info}`,
+        l.link
+    ));
+    let torrentDirectButtons = torrentLinks.filter(l => l.localLink).map(l => Markup.button.url(
+        `[Torrent:LocalLink]: ${l.info}`,
+        config.localDownloadUrl + '/' + l.localLink.replace(/^\//, '')
+    ));
+
+    return {
+        links: links,
+        torrentLinks: torrentLinks,
+        buttons: [...buttons, ...torrentButtons, ...torrentDirectButtons],
+        columns: 2,
+    }
+}
+
+export function createSeasonButtons(seasons, movieId, type) {
+    let buttons = seasons.filter(s => s.episodes.find(e => e.links.length > 0 || e.torrentLinks.length > 0))
+        .map(s => Markup.button.callback(
+            `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
+            'download_' + movieId + '_' + type + '_' + s.seasonNumber,
+        ));
+
+    return {
+        buttons: buttons,
+        columns: 2,
+    }
+}
+
+export function createEpisodesButtons(seasons, movieId, type, season) {
+    let episodes = seasons.find(item => item.seasonNumber === season)?.episodes
+        .filter(e => e.links.length > 0 || e.torrentLinks.length > 0) || [];
+    if (episodes.length > 200) {
+        episodes = episodes.slice(episodes.length - 200);
+    }
+
+    let buttons = episodes.map(e => Markup.button.callback(
+        `Epi ${e.episodeNumber} ${(e.title && e.title !== 'unknown' && !e.title.match(/episode \d/i)) ? `(${e.title})` : ''}`,
+        'download_' + movieId + '_' + type + '_' + season + '_' + e.episodeNumber,
+    ));
+
+    return {
+        episodes: episodes,
+        buttons: buttons,
+        columns: 3,
+    }
+}
+
+export function createSerialsDownloadLinkButtons(seasons, seasonNumber, episodeNumber) {
+    let episodes = seasons.find(item => item.seasonNumber === seasonNumber)?.episodes || [];
+    let links = episodes.find(e => e.episodeNumber === episodeNumber)?.links || [];
+    let torrentLinks = episodes.find(e => e.episodeNumber === episodeNumber)?.torrentLinks || [];
 
     let buttons = links.map(l => Markup.button.url(
         `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
@@ -386,12 +441,12 @@ export async function handleMovieDownload(ctx, text) {
         config.localDownloadUrl + '/' + l.localLink.replace(/^\//, '')
     ));
 
-    const columns = torrentButtons.length > 0 ? 1 : 2;
-    return await ctx.telegram.editMessageText(
-        (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-        undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => Download Links`,
-        Markup.inlineKeyboard([...buttons, ...torrentButtons, ...torrentDirectButtons], {columns: columns}),
-    );
+    return {
+        links: links,
+        torrentLinks: torrentLinks,
+        buttons: [...buttons, ...torrentButtons, ...torrentDirectButtons],
+        columns: torrentButtons.length > 0 ? 1 : 2,
+    }
 }
 
 export async function sendTrailer(ctx, movieID) {
@@ -451,6 +506,24 @@ async function sendApps(ctx) {
         }
     }
     text = text.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
+    await ctx.reply(text, {parse_mode: 'MarkdownV2'});
+}
+
+async function sendInstruction(ctx) {
+    let botId = config.botId.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
+    let text = `
+*1. Inline search:*\n@${botId} name\\_of\\_movie
+_Example: @${botId} jujutsu kaisen_\n
+*2. Inline search with direct download:*\n@${botId} name\\_of\\_movie -download
+_Example: @${botId} jujutsu kaisen -download_\n
+*3. Inline search with seasons list:*\n@${botId} name\\_of\\_movie -season
+_Example: @${botId} jujutsu kaisen -season_\n
+*4. Inline search with season selection:*\n@${botId} name\\_of\\_movie -season \\_number\\_
+_Example: @${botId} jujutsu kaisen -season 1_\n
+*5. Inline search with season and episode selection:*\n@${botId} name\\_of\\_movie -season \\_number\\_ episode \\_number\\_
+_Example: @${botId} jujutsu kaisen -season 1 episode 5_\n
+    `;
+    text = text.replace(/[!.|{}#+>=-]/g, res => '\\' + res);
     await ctx.reply(text, {parse_mode: 'MarkdownV2'});
 }
 

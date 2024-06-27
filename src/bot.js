@@ -2,12 +2,20 @@ import config from "./config.js";
 import {Markup, session, Telegraf} from "telegraf";
 import * as Sentry from "@sentry/node";
 import {ProfilingIntegration} from "@sentry/profiling-node";
-import {getMenuButtons, handleMenuButtons, handleMovieData, handleMovieDownload, sendTrailer} from "./menuButtons.js";
+import {
+    createEpisodesButtons, createMoviesDownloadLinksButtons, createSeasonButtons,
+    createSerialsDownloadLinkButtons,
+    getMenuButtons,
+    handleMenuButtons,
+    handleMovieData,
+    handleMovieDownload,
+    sendTrailer
+} from "./menuButtons.js";
 import {saveError} from "./saveError.js";
 import {sendMoviesToChannel, sleep} from "./channel.js";
 import cron from "node-cron";
 import {getMovieData, searchMovie} from "./api.js";
-import {capitalize, encodersRegex} from "./utils.js";
+import {capitalize} from "./utils.js";
 
 if (!config.botToken) {
     throw new Error('"BOT_TOKEN" env var is required!');
@@ -86,8 +94,9 @@ bot.start(async (ctx) => {
 });
 
 bot.on('inline_query', async (ctx) => {
-    const [query, se] = ctx.update.inline_query.query.split('-');
-    const isComplex = se && !!se.match(/(s \d+(\se \d+)?)|d/i);
+    let [query, se] = ctx.update.inline_query.query.toLowerCase().split('-');
+    se = se?.trim() || "";
+    const isComplex = se && !!se.match(/(s \d+(\se \d+)?)|(download?)|(season)/i);
     if (!query || query.length < 3) {
         return;
     }
@@ -103,60 +112,48 @@ bot.on('inline_query', async (ctx) => {
             if (movieData && movieData !== 'error') {
                 if (item.type.includes('movie')) {
                     //movie links
-                    let links = movieData.qualities.map(q => q.links).flat(1);
-                    if (links.length > 0) {
-                        let noCensoredLinks = links.filter(l => !l.info.toLowerCase().includes('censored'));
-
-                        let buttons = noCensoredLinks.map(l => Markup.button.url(
-                            `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
-                            l.link
-                        ));
-                        return Markup.inlineKeyboard([...buttons], {columns: 2});
+                    let {buttons, columns} = createMoviesDownloadLinksButtons(movieData.qualities);
+                    if (buttons.length > 0) {
+                        return Markup.inlineKeyboard(buttons, {columns: columns});
                     }
                 } else {
                     //serial
                     if (movieData.seasons.length > 0) {
-                        if (se === 'd') {
+                        if (se === 'download' || se === "season") {
                             //choose season
-                            let buttons = movieData.seasons.filter(s => s.episodes.find(e => e.links.length > 0))
-                                .map(s => Markup.button.url(
-                                    `Season ${s.seasonNumber} (Episodes: ${s.episodes.length})`,
-                                    `t.me/${config.botId}?start=download_` + item._id + '_' + item.type + '_' + s.seasonNumber,
-                                ));
+                            let {buttons, columns} = createSeasonButtons(movieData.seasons, item._id, item.type);
                             if (buttons.length > 0) {
-                                return Markup.inlineKeyboard([...buttons], {columns: 2});
+                                return Markup.inlineKeyboard([...buttons], {columns: columns});
                             }
                         }
 
-                        let [_, season, episode] = se.split(/s |e /g);
-                        let episodes = movieData.seasons.find(item => item.seasonNumber === Number(season))?.episodes
-                            .filter(e => e.links.length > 0) || [];
-                        if (episodes.length > 200) {
-                            episodes = episodes.slice(episodes.length - 200);
-                        }
+                        let [season, episode] = se.split(/season\s|(-)?episode\s/).filter(Boolean);
+
                         if (episode === null || episode === undefined) {
                             //choose episode
+                            let {
+                                buttons,
+                                episodes,
+                                columns
+                            } = createEpisodesButtons(movieData.seasons, item._id, movieData.type, Number(season));
                             if (episodes.length > 0) {
-                                let buttons = episodes.map(e => Markup.button.url(
-                                    `Epi ${e.episodeNumber} ${(e.title && e.title !== 'unknown' && !e.title.match(/episode \d/i)) ? `(${e.title})` : ''}`,
-                                    `t.me/${config.botId}?start=download_` + item._id + '_' + item.type + '_' + season + '_' + e.episodeNumber,
-                                ));
-                                return Markup.inlineKeyboard([...buttons], {columns: 3});
+                                return Markup.inlineKeyboard([...buttons], {columns: columns});
                             }
                         } else {
                             //download links
-                            let links = episodes.find(e => e.episodeNumber === Number(episode))?.links || [];
-                            if (links.length > 0) {
-                                let buttons = links.map(l => Markup.button.url(
-                                    `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
-                                    l.link
-                                ));
-                                return Markup.inlineKeyboard([...buttons], {columns: 2});
+                            let {
+                                buttons,
+                                columns
+                            } = createSerialsDownloadLinkButtons(movieData.seasons, Number(season), Number(episode));
+
+                            if (buttons.length > 0) {
+                                return Markup.inlineKeyboard(buttons, {columns: columns});
                             }
                         }
                     }
                 }
             }
+
         }
         return Markup.inlineKeyboard([
             Markup.button.url("Info", `t.me/${config.botId}?start=movieID_${item._id}`),
@@ -169,20 +166,27 @@ bot.on('inline_query', async (ctx) => {
         let btns = await buttons(searchResult[i]);
         let message_text = `${searchResult[i].rawTitle} | ${capitalize(searchResult[i].type)} | ${searchResult[i].year}`;
         if (isComplex && searchResult[i].type.includes('serial')) {
-            message_text += `\n${se.replace(/\s/g, '').toUpperCase()}`;
+            message_text += `\n${se.replace('season', 'S').replace('episode', 'E').replace(/\s/g, '').toUpperCase()}`;
         }
 
-        results.push({
-            type: 'article',
-            id: searchResult[i]._id || searchResult[i].movieId || searchResult[i].movieID,
-            title: `${searchResult[i].rawTitle} | ${capitalize(searchResult[i].type)} | ${searchResult[i].year}`,
-            description: searchResult[i].summary?.persian?.slice(0, 50) || '',
-            input_message_content: {
-                message_text: message_text,
-            },
-            inline_query_id: searchResult[i]._id.toString(),
-            ...btns,
-        });
+        try {
+            results.push({
+                type: 'article',
+                id: searchResult[i]._id || searchResult[i].movieId || searchResult[i].movieID,
+                title: `${searchResult[i].rawTitle} | ${capitalize(searchResult[i].type)} | ${searchResult[i].year}`,
+                description: searchResult[i].summary?.persian?.slice(0, 50) || searchResult[i].summary?.english?.slice(0, 50) || '',
+                input_message_content: {
+                    message_text: message_text,
+                },
+                thumbnail_url: searchResult[i].posters[0]?.url,
+                photo_width: 30,
+                photo_height: 30,
+                inline_query_id: searchResult[i]._id.toString(),
+                ...btns,
+            });
+        } catch (error) {
+            saveError(error);
+        }
     }
 
     ctx.answerInlineQuery(results, {cache_time: 0});
