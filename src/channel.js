@@ -177,3 +177,11 @@ async function sendMovieDataToChannel(bot, movieData) {
 export async function sleep(ms) {
     await new Promise(resolve => setTimeout(resolve, ms));
 }
+
+export function getAnimeWatchOnlineLink(gogoID, episodeNumber) {
+    return [
+        `https://marinn.me/watch/${gogoID}-episode-${episodeNumber}`,
+        `https://ryuk.to/watch/${gogoID}-episode-${episodeNumber}`,
+        `https://anitaku.so/${gogoID}-episode-${episodeNumber}`,
+    ]
+}

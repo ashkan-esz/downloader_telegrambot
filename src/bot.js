@@ -12,7 +12,7 @@ import {
     sendTrailer
 } from "./menuButtons.js";
 import {saveError} from "./saveError.js";
-import {sendMoviesToChannel, sleep} from "./channel.js";
+import {getAnimeWatchOnlineLink, sendMoviesToChannel, sleep} from "./channel.js";
 import cron from "node-cron";
 import {getMovieData, searchMovie} from "./api.js";
 import {capitalize} from "./utils.js";
@@ -108,8 +108,10 @@ bot.on('inline_query', async (ctx) => {
 
     const buttons = async (item) => {
         if (isComplex) {
-            let movieData = await getMovieData(item._id, 'dlink', item.type);
+            let dataLevel = item.type === "anime_serial" ? "high" : "dlink";
+            let movieData = await getMovieData(item._id, dataLevel, item.type);
             if (movieData && movieData !== 'error') {
+                item.movieData = movieData;
                 if (item.type.includes('movie')) {
                     //movie links
                     let {buttons, columns} = createMoviesDownloadLinksButtons(movieData.qualities);
@@ -128,6 +130,8 @@ bot.on('inline_query', async (ctx) => {
                         }
 
                         let [season, episode] = se.split(/season\s|(-)?episode\s/).filter(Boolean);
+                        item.season = season;
+                        item.episode = episode;
 
                         if (episode === null || episode === undefined) {
                             //choose episode
@@ -166,7 +170,13 @@ bot.on('inline_query', async (ctx) => {
         let btns = await buttons(searchResult[i]);
         let message_text = `${searchResult[i].rawTitle} | ${capitalize(searchResult[i].type)} | ${searchResult[i].year}`;
         if (isComplex && searchResult[i].type.includes('serial')) {
-            message_text += `\n${se.replace('season', 'S').replace('episode', 'E').replace(/\s/g, '').toUpperCase()}`;
+            message_text += `\n${se.replace('season', 'S').replace('episode', 'E').replace(/\s/g, '').toUpperCase()}\n`;
+            if (searchResult[i].movieData?.apiIds && searchResult[i].episode) {
+                let watchOnlineLinks = getAnimeWatchOnlineLink(searchResult[i].movieData.apiIds.gogoID, Number(searchResult[i].episode));
+                for (let i = 0; i < watchOnlineLinks.length; i++) {
+                    message_text += `${i + 1}. Watch Online: ${watchOnlineLinks[i]}\n`;
+                }
+            }
         }
 
         try {
@@ -174,7 +184,7 @@ bot.on('inline_query', async (ctx) => {
                 type: 'article',
                 id: searchResult[i]._id || searchResult[i].movieId || searchResult[i].movieID,
                 title: `${searchResult[i].rawTitle} | ${capitalize(searchResult[i].type)} | ${searchResult[i].year}`,
-                description: searchResult[i].summary?.persian?.slice(0, 50) || searchResult[i].summary?.english?.slice(0, 50) || '',
+                description: searchResult[i].summary?.persian?.slice(0, 100) || searchResult[i].summary?.english?.slice(0, 100) || '',
                 input_message_content: {
                     message_text: message_text,
                 },

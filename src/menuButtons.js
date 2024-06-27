@@ -4,7 +4,7 @@ import {message} from "telegraf/filters";
 import {getApps, getMovieData, getNewsAndUpdates, getSortedMovies, searchMovie} from "./api.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
-import {sleep} from "./channel.js";
+import {getAnimeWatchOnlineLink, sleep} from "./channel.js";
 
 
 const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
@@ -287,7 +287,8 @@ export async function handleMovieDownload(ctx, text) {
     let state = data.length === 2 ? (data[1].includes('serial') ? 'Season' : 'DownloadLinks')
         : data.length === 3 ? 'Episode' : 'DownloadLinks';
     const {message_id} = await ctx.reply(`Fetching ${state} Data`);
-    let movieData = await getMovieData(data[0], 'dlink', data[2]);
+    let dataLevel = data[1]?.toLowerCase() === "animeserial" ? "high" : "dlink";
+    let movieData = await getMovieData(data[0], dataLevel, data[2]);
     if (movieData === 'error') {
         return await ctx.telegram.editMessageText(
             ctx.update.message.chat.id, message_id,
@@ -358,9 +359,16 @@ export async function handleMovieDownload(ctx, text) {
             undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => No Download Link Found!`);
     }
 
+    let caption = `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => Download Links\n\n`;
+    if (movieData.apiIds?.gogoID){
+        let watchOnlineLinks = getAnimeWatchOnlineLink(movieData.apiIds.gogoID, Number(data[3]));
+        for (let i = 0; i < watchOnlineLinks.length; i++) {
+            caption += `${i+1}. Watch Online: ${watchOnlineLinks[i]}\n`;
+        }
+    }
     return await ctx.telegram.editMessageText(
         (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-        undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => Download Links`,
+        undefined, caption,
         Markup.inlineKeyboard(buttons, {columns: columns}),
     );
 }
@@ -513,18 +521,18 @@ async function sendApps(ctx) {
 async function sendInstruction(ctx) {
     let botId = config.botId.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
     let text = `
-*1. Inline search:*\n@${botId} name\\_of\\_movie
+*1. Inline search:*\n@${botId} [name\\_of\\_movie]
 _Example: @${botId} jujutsu kaisen_\n
-*2. Inline search with direct download:*\n@${botId} name\\_of\\_movie -download
+*2. Inline search with direct download:*\n@${botId} [name\\_of\\_movie] -download
 _Example: @${botId} jujutsu kaisen -download_\n
-*3. Inline search with seasons list:*\n@${botId} name\\_of\\_movie -season
+*3. Inline search with seasons list:*\n@${botId} [name\\_of\\_movie] -season
 _Example: @${botId} jujutsu kaisen -season_\n
-*4. Inline search with season selection:*\n@${botId} name\\_of\\_movie -season \\_number\\_
+*4. Inline search with season selection:*\n@${botId} [name\\_of\\_movie] -season [number]
 _Example: @${botId} jujutsu kaisen -season 1_\n
-*5. Inline search with season and episode selection:*\n@${botId} name\\_of\\_movie -season \\_number\\_ episode \\_number\\_
+*5. Inline search with season and episode selection:*\n@${botId} [name\\_of\\_movie] -season [number] episode [number]
 _Example: @${botId} jujutsu kaisen -season 1 episode 5_\n
     `;
-    text = text.replace(/[!.|{}#+>=-]/g, res => '\\' + res);
+    text = text.replace(/[!.|{}#+>=\-\[\]]/g, res => '\\' + res);
     await ctx.reply(text, {parse_mode: 'MarkdownV2'});
 }
 
