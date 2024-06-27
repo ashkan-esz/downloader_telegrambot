@@ -209,6 +209,7 @@ async function sendMovieData(ctx, message_id, movieData) {
 🔹 Type : ${capitalize(movieData.type)}\n
 🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
 📅 Year : ${movieData.year}\n
+▶️ Status: ${capitalize(movieData.status)}\n
 ⭕️ Genre : ${movieData.genres.map(g => capitalize(g)).join(', ')}\n
 🎭 Actors : ${movieData.actorsAndCharacters.filter(item => !!item.staff).map(item => item.staff.name).join(', ')}\n
 📜 Summary : \n${(movieData.summary.persian || movieData.summary.english).slice(0, 150)}...\n\n`;

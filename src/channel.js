@@ -57,9 +57,13 @@ async function sendMovieDataToChannel(bot, movieData) {
             if (movieData.latestData.torrentLinks) {
                 let [_, torrentSeason, torrentEpisode] = movieData.latestData.torrentLinks.split(/[se]/gi).map(item => Number(item));
                 if (latestSeason < torrentSeason || (latestSeason === torrentSeason && latestEpisode < torrentEpisode)) {
+                    latestSeason = torrentSeason;
+                    latestEpisode = torrentEpisode;
                     update = movieData.latestData.torrentLinks.toUpperCase() + " (Torrent)";
                 }
             }
+            update = update.replace(/[()\[\]]/g, res => '\\' + res);
+            update = `[${update}](t.me/${config.botId}?start=download_${movieID}_${movieData.type}_${latestSeason}_${latestEpisode})`;
         }
 
         let caption = '';
@@ -68,20 +72,24 @@ async function sendMovieDataToChannel(bot, movieData) {
 🎬 ${movieData.rawTitle}\n
 🔹 Type : ${capitalize(movieData.type)}\n
 🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
-🖥 Update: ${update}\n\n`;
+🖥 Update: UPDATE\n
+▶️ Status: ${capitalize(movieData.status)}\n\n`;
         } else {
             caption = `
 🎬 ${movieData.rawTitle}\n
 🔹 Type : ${capitalize(movieData.type)}\n
 🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
-🖥 Update: ${update}\n
+🖥 Update: UPDATE\n
 📅 Year : ${movieData.year}\n
+▶️ Status: ${capitalize(movieData.status)}\n
 ⭕️ Genre : ${movieData.genres.slice(0, 6).map(g => capitalize(g)).join(', ')}\n
 🎭 Actors : ${movieData.actorsAndCharacters.filter(item => !!item.staff).slice(0, 5).map(item => item.staff.name).join(', ')}\n
 📜 Summary : \n${(movieData.summary.persian || movieData.summary.english).slice(0, 150)}...\n\n`;
         }
 
         caption = caption.replace(/[()\[\]]/g, res => '\\' + res);
+        caption = caption.replace("UPDATE", update);
+
         if (movieData.relatedTitles && movieData.relatedTitles.length > 0 && newReleaseOrSeason) {
             caption += `🔗 Related: \n${movieData.relatedTitles.slice(0, 10).map(item => {
                 let title = `${item.rawTitle} \\(${item.year}\\) \\(${capitalize(item.relation)}\\)`;
@@ -94,21 +102,7 @@ async function sendMovieDataToChannel(bot, movieData) {
             caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
         } else {
             caption += `📥 [Info](t.me/${config.botId}?start=movieID_${movieID}_${movieData.type})`;
-            caption += ` || [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})`;
-            if (movieData.type.includes('serial')) {
-                let [_, torrent_s, torrent_e] = movieData.latestData.torrentLinks.split(/[se]/g);
-                let season = movieData.latestData.season;
-                let episode = movieData.latestData.episode;
-                torrent_s = Number(torrent_s);
-                torrent_e = Number(torrent_e);
-                if (torrent_s > season || (torrent_s === season && torrent_e > episode)) {
-                    season = torrent_s;
-                    episode = torrent_e;
-                }
-                caption += ` || [S${season}E${episode}](t.me/${config.botId}?start=download_${movieID}_${movieData.type}_${season}_${episode})\n`;
-            } else {
-                caption += '\n';
-            }
+            caption += ` || [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
         }
         if (config.webUrl) {
             caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
