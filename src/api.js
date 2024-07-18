@@ -22,8 +22,7 @@ export async function searchMovie(title, dataLevel, page) {
             });
         return result.data.data;
     } catch (error) {
-        handleError(error);
-        return 'error';
+        return handleError(error, true);
     }
 }
 
@@ -38,8 +37,7 @@ export async function getMovieData(movieId, dataLevel = 'high', season = '') {
             });
         return result.data.data;
     } catch (error) {
-        handleError(error, false);
-        return 'error';
+        return handleError(error, false);
     }
 }
 
@@ -55,8 +53,7 @@ export async function getSortedMovies(sortBase, dataLevel, page) {
             });
         return result.data.data;
     } catch (error) {
-        handleError(error);
-        return 'error';
+        return handleError(error, true);
     }
 }
 
@@ -73,8 +70,7 @@ export async function getNewsAndUpdates(apiName = 'news', dataLevel = 'info', pa
         );
         return result.data.data;
     } catch (error) {
-        handleError(error);
-        return 'error';
+        return handleError(error, true);
     }
 }
 
@@ -89,8 +85,7 @@ export async function getChannelNewsAndUpdates(requestType = 'newsAndUpdates', d
         );
         return result.data.data;
     } catch (error) {
-        handleError(error);
-        return 'error';
+        return handleError(error, true);
     }
 }
 
@@ -104,7 +99,7 @@ export async function getApps() {
         );
         return result.data.data;
     } catch (error) {
-       return  handleError(error);
+        return handleError(error, true);
     }
 }
 
