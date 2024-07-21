@@ -2,6 +2,7 @@ import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
 import {getApps, getMovieData, getNewsAndUpdates, getSortedMovies, searchMovie} from "./api.js";
+import * as API from "./api.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
 import {getAnimeWatchOnlineLink, sleep} from "./channel.js";
@@ -19,6 +20,7 @@ export function getMenuButtons() {
         ['🔥 Top Likes', '🔥 Top Likes Of Month'],
         ['🔥 Top Follow Of Month'],
         ['📕 Instruction', 'Apps'],
+        ['🔒 Login', '📩 Toggle Account Notifications'],
     ]).resize();
 }
 
@@ -41,6 +43,8 @@ export function handleMenuButtons(bot) {
     bot.hears('🔥 Updates', (ctx) => sendSortedMovies(ctx, 'updates'));
 
     bot.hears('📕 Instruction', (ctx) => sendInstruction(ctx));
+    bot.hears('🔒 Login', (ctx) => loginToAccount(ctx));
+    bot.hears('📩 Toggle Account Notifications', (ctx) => toggleAccountNotification(ctx));
     bot.hears('Apps', (ctx) => sendApps(ctx));
 
     bot.hears('More...', (ctx) => {
@@ -81,6 +85,9 @@ export function handleMenuButtons(bot) {
     });
 
     bot.on(message('text'), (ctx) => {
+        if (ctx.message?.text?.match(/username\s?:/i)) {
+            return handleUserAccountLogin(ctx);
+        }
         return handleMovieSearch(ctx);
     });
 }
@@ -88,6 +95,7 @@ export function handleMenuButtons(bot) {
 export async function sendSortedMovies(ctx, sortBase) {
     if (!ctx.session || !ctx.session.sortBase) {
         ctx.session = {
+            ...(ctx.session || {}),
             pageNumber: 1,
             sortBase: sortBase,
         };
@@ -131,7 +139,9 @@ export async function handleMovieData(ctx, movieID) {
 async function handleMovieSearch(ctx, title) {
     if (!ctx.session) {
         ctx.session = {
+            ...(ctx.session || {}),
             pageNumber: 1,
+            sortBase: '',
         };
     }
     let message = title || ctx.message.text;
@@ -360,10 +370,10 @@ export async function handleMovieDownload(ctx, text) {
     }
 
     let caption = `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => Download Links\n\n`;
-    if (movieData.apiIds?.gogoID){
+    if (movieData.apiIds?.gogoID) {
         let watchOnlineLinks = getAnimeWatchOnlineLink(movieData.apiIds.gogoID, Number(data[3]));
         for (let i = 0; i < watchOnlineLinks.length; i++) {
-            caption += `${i+1}. Watch Online: ${watchOnlineLinks[i]}\n`;
+            caption += `${i + 1}. Watch Online: ${watchOnlineLinks[i]}\n`;
         }
     }
     return await ctx.telegram.editMessageText(
@@ -536,6 +546,99 @@ _Example: @${botId} jujutsu kaisen -season 1 episode 5_\n
     await ctx.reply(text, {parse_mode: 'MarkdownV2'});
 }
 
+async function loginToAccount(ctx) {
+    try {
+        if (ctx.session.accessToken) {
+            await ctx.reply(`NOTE: currently login as << ${ctx.session.username} >>\ncontinue if you want to login again`);
+        }
+        await ctx.reply("Send username and password in below format");
+        await ctx.reply("username: user \npassword: password");
+    } catch (error) {
+        saveError(error);
+        await ctx.reply(`Error: ${error.toString()}`);
+    }
+}
+
+async function handleUserAccountLogin(ctx) {
+    try {
+        let temp = ctx.message.text.split(/(username\s?:)|(password\s?:)/gi).filter(Boolean).map(item => item.trim());
+        let user = temp[1] || '';
+        let pass = temp[3] || '';
+        if (!user || !pass) {
+            return await ctx.reply("Invalid username, password format");
+        }
+
+        let errors = [];
+        if (user.length < 6) {
+            errors.push("Username Length Must Be More Than 6");
+        } else if (user.length > 50) {
+            errors.push("Username Length Must Be Less Than 50");
+        }
+        if (!user.match(/^[a-z|\d_-]+$/i)) {
+            errors.push("Only a-z, 0-9, and underscores are allowed for username");
+        }
+
+        if (pass.length < 8) {
+            errors.push("Password Length Must Be More Than 8");
+        } else if (pass.length > 50) {
+            errors.push("Password Length Must Be Less Than 50");
+        }
+        if (user === pass) {
+            errors.push("Username and Password cannot be equal");
+        }
+        if (errors.length > 0) {
+            return await ctx.reply(errors.join('\n'));
+        }
+
+        let result = await API.loginToUserAccount({
+            username_email: user,
+            password: pass,
+            botId: config.serverBotToken,
+            chatId: ctx.update.message.chat.id.toString(),
+            botUsername: ctx.update.message.chat.username,
+        });
+        if (result.code !== 200) {
+            return await ctx.reply(`Error: ${result.errorMessage}`);
+        }
+        if (!ctx.session) {
+            ctx.session = {
+                ...(ctx.session || {}),
+                pageNumber: 1,
+                sortBase: '',
+                accessToken: result.accessToken,
+                username: result.username,
+                notification: result.notification,
+            }
+        } else {
+            ctx.session.accessToken = result.accessToken;
+            ctx.session.username = result.username;
+            ctx.session.notification = result.notification;
+        }
+        await ctx.reply(`Successfully login as << ${result.username} >>`);
+
+    } catch (error) {
+        saveError(error);
+    }
+}
+
+async function toggleAccountNotification(ctx) {
+    try {
+        if (!ctx.session.accessToken) {
+            return await ctx.reply(`login to account first`);
+        }
+
+        let result = await API.changeAccountNotificationFlag(!ctx.session.notification, ctx.session.accessToken);
+        if (result.code !== 200) {
+            return await ctx.reply(`Error: ${result.errorMessage}`);
+        }
+        ctx.session.notification = result.notification;
+        await ctx.reply(`Account notification is now ${result.notification ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+        saveError(error);
+        await ctx.reply(`Error: ${error.toString()}`);
+    }
+}
+
 function getPaginationButtons(ctx, searchResult, data) {
     let currentPage = ctx.session.pageNumber;
     if (searchResult.length % 12 !== 0) {
@@ -557,7 +660,9 @@ function getPaginationButtons(ctx, searchResult, data) {
 
 function moveToMainMenu(ctx) {
     ctx.session = {
+        ...(ctx.session || {}),
         pageNumber: 1,
+        sortBase: '',
     };
     return ctx.reply('What you wanna do now?', getMenuButtons());
 }

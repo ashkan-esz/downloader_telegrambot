@@ -12,6 +12,35 @@ const API = setupCache(
     }
 );
 
+// ------------------------------------------------------
+// ------------------------------------------------------
+
+export async function loginToUserAccount(data) {
+    try {
+        let result = await API.post(`/bots/login`, data);
+        return result.data;
+    } catch (error) {
+        return error.response.data || handleError(error, false);
+    }
+}
+
+export async function changeAccountNotificationFlag(notificationEnable, accessToken) {
+    try {
+        let result = await API.put(`/bots/${config.serverBotToken}/notification/${notificationEnable}`, null, {
+            headers: {
+                authorization: `Bearer ${accessToken}`,
+                isBotRequest: true,
+            }
+        });
+        return result.data;
+    } catch (error) {
+        return error.response.data || handleError(error, false);
+    }
+}
+
+// ------------------------------------------------------
+// ------------------------------------------------------
+
 export async function searchMovie(title, dataLevel, page) {
     try {
         let result = await API.get(

@@ -16,6 +16,7 @@ import {getAnimeWatchOnlineLink, sendMoviesToChannel, sleep} from "./channel.js"
 import cron from "node-cron";
 import {getMovieData, searchMovie} from "./api.js";
 import {capitalize} from "./utils.js";
+import {Mongo} from "@telegraf/session/mongodb";
 
 if (!config.botToken) {
     throw new Error('"BOT_TOKEN" env var is required!');
@@ -36,8 +37,14 @@ Sentry.init({
     profilesSampleRate: 0.01,
 });
 
+const store = Mongo({
+    url: config.mongodbUrl,
+    // database: "downloader",
+    collection: "downloader-bot-context",
+});
+
 const bot = new Telegraf(config.botToken);
-bot.use(session());
+bot.use(session({store: store}));
 
 await bot.telegram.setChatMenuButton();
 
@@ -88,7 +95,9 @@ bot.hears(/^\/start (.*)$/, ctx => {
 
 bot.start(async (ctx) => {
     ctx.session = {
+        ...(ctx.session || {}),
         pageNumber: 1,
+        sortBase: '',
     };
     ctx.reply('Welcome', getMenuButtons());
 });
