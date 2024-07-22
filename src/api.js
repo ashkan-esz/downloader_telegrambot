@@ -41,6 +41,41 @@ export async function changeAccountNotificationFlag(notificationEnable, accessTo
 // ------------------------------------------------------
 // ------------------------------------------------------
 
+export async function followSerial(movieId, remove, accessToken) {
+    try {
+        let result = await API.put(`/movies/addUserStats/follow_movie/${movieId}?remove=${remove}`, null, {
+            headers: {
+                authorization: `Bearer ${accessToken}`,
+                isBotRequest: true,
+            }
+        });
+        return result.data;
+    } catch (error) {
+        return error.response.data || handleError(error, false);
+    }
+}
+
+export async function getFollowingSerials(dataLevel, page, accessToken) {
+    try {
+        let result = await API.get(`/movies/userStatsList/follow_movie/${dataLevel}/${page}`, {
+            params: {
+                embedStaffAndCharacter: true,
+            },
+            headers: {
+                authorization: `Bearer ${accessToken}`,
+                isBotRequest: true,
+            },
+            cache: false,
+        });
+        return result.data.data;
+    } catch (error) {
+        return handleError(error, true);
+    }
+}
+
+// ------------------------------------------------------
+// ------------------------------------------------------
+
 export async function searchMovie(title, dataLevel, page) {
     try {
         let result = await API.get(

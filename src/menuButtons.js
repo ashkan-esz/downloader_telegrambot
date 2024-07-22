@@ -1,7 +1,6 @@
 import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
-import {getApps, getMovieData, getNewsAndUpdates, getSortedMovies, searchMovie} from "./api.js";
 import * as API from "./api.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
@@ -13,6 +12,7 @@ const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
 export function getMenuButtons() {
     return Markup.keyboard([
         ['🔍 Search'],
+        ['⚡️ Followings', '⚡️ Followings Updates'],
         ['🔥 News', '🔥 Updates'],
         ['🔥 Coming Soon Anime', '🔥 Airing Anime'],
         ['🔥 Season Anime', '🔥 Upcoming Season Anime'],
@@ -41,6 +41,8 @@ export function handleMenuButtons(bot) {
     bot.hears('🔥 Top Follow Of Month', (ctx) => sendSortedMovies(ctx, 'follow_month'));
     bot.hears('🔥 News', (ctx) => sendSortedMovies(ctx, 'news'));
     bot.hears('🔥 Updates', (ctx) => sendSortedMovies(ctx, 'updates'));
+    bot.hears('⚡️ Followings', (ctx) => sendSortedMovies(ctx, 'followings'));
+    bot.hears('⚡️ Followings Updates', (ctx) => sendFollowingUpdates(ctx));
 
     bot.hears('📕 Instruction', (ctx) => sendInstruction(ctx));
     bot.hears('🔒 Login', (ctx) => loginToAccount(ctx));
@@ -84,6 +86,17 @@ export function handleMenuButtons(bot) {
         return handleMovieDownload(ctx);
     });
 
+    bot.action(/follow_serial_/, async (ctx) => {
+        return handleFollowSerial(ctx);
+    });
+
+    bot.action(/followings_all_updates/, async (ctx) => {
+        return sendFollowingUpdates(ctx);
+    });
+    bot.action(/followings_all/, async (ctx) => {
+        return sendSortedMovies(ctx, 'followings');
+    });
+
     bot.on(message('text'), (ctx) => {
         if (ctx.message?.text?.match(/username\s?:/i)) {
             return handleUserAccountLogin(ctx);
@@ -93,6 +106,10 @@ export function handleMenuButtons(bot) {
 }
 
 export async function sendSortedMovies(ctx, sortBase) {
+    if (!ctx.session.accessToken && sortBase === "followings") {
+        return await ctx.reply(`login to account first`);
+    }
+
     if (!ctx.session || !ctx.session.sortBase) {
         ctx.session = {
             ...(ctx.session || {}),
@@ -106,9 +123,11 @@ export async function sendSortedMovies(ctx, sortBase) {
 
     await ctx.reply(`Fetching Movie Data (Page: ${ctx.session.pageNumber})`,
         Markup.keyboard([['🏠 Home', 'More...']]).resize());
-    let movies = (sortBase === 'news' || sortBase === 'updates')
-        ? await getNewsAndUpdates(sortBase, 'info', ctx.session.pageNumber)
-        : await getSortedMovies(sortBase, 'info', ctx.session.pageNumber);
+    let movies = sortBase === "followings"
+        ? await API.getFollowingSerials('info', ctx.session.pageNumber, ctx.session.accessToken)
+        : (sortBase === 'news' || sortBase === 'updates')
+            ? await API.getNewsAndUpdates(sortBase, 'info', ctx.session.pageNumber)
+            : await API.getSortedMovies(sortBase, 'info', ctx.session.pageNumber);
     if (movies === 'error') {
         return await ctx.reply('Server Error on fetching Movies data');
     } else if (movies.length === 0) {
@@ -123,7 +142,7 @@ export async function sendSortedMovies(ctx, sortBase) {
 export async function handleMovieData(ctx, movieID) {
     let data = (ctx.update.callback_query?.data || movieID || '').split('_');
     const {message_id} = await ctx.reply(`Fetching Movie Data`);
-    let movieData = await getMovieData(data[1], 'info');
+    let movieData = await API.getMovieData(data[1], 'info');
     if (movieData === 'error') {
         return await ctx.telegram.editMessageText(
             ctx.update.message.chat.id, message_id,
@@ -166,7 +185,7 @@ async function handleMovieSearch(ctx, title) {
         lastMessageId = message_id;
     }
 
-    let searchResult = await searchMovie(message, 'low', pageNumber);
+    let searchResult = await API.searchMovie(message, 'low', pageNumber);
 
     if (searchResult === 'error') {
         return ctx.reply(`Server error on searching \"${message}\"`);
@@ -235,6 +254,9 @@ async function sendMovieData(ctx, message_id, movieData) {
 
         let movieTitle = movieData.title || movieData.rawTitle;
         caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
+        if (movieData.type.includes('serial')) {
+            caption += `⚡️ [Follow](t.me/${config.botId}?start=follow_serial_${movieID})\n`;
+        }
         if (config.webUrl) {
             caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
         }
@@ -298,7 +320,7 @@ export async function handleMovieDownload(ctx, text) {
         : data.length === 3 ? 'Episode' : 'DownloadLinks';
     const {message_id} = await ctx.reply(`Fetching ${state} Data`);
     let dataLevel = data[1]?.toLowerCase() === "animeserial" ? "high" : "dlink";
-    let movieData = await getMovieData(data[0], dataLevel, data[2]);
+    let movieData = await API.getMovieData(data[0], dataLevel, data[2]);
     if (movieData === 'error') {
         return await ctx.telegram.editMessageText(
             ctx.update.message.chat.id, message_id,
@@ -381,6 +403,115 @@ export async function handleMovieDownload(ctx, text) {
         undefined, caption,
         Markup.inlineKeyboard(buttons, {columns: columns}),
     );
+}
+
+export async function handleFollowSerial(ctx, text = '') {
+    try {
+        if (!ctx.session.accessToken) {
+            return await ctx.reply(`login to account first`);
+        }
+
+        let temp = (ctx.update.callback_query?.data || text || '').split("_");
+        let movieId = temp.pop();
+        if (!movieId) {
+            return await ctx.reply(`Invalid MovieID`);
+        }
+        let isUnfollow = temp.pop().toLowerCase() === "unfollow";
+
+        const {message_id} = await ctx.reply('⏳');
+
+        let result = await API.followSerial(movieId, isUnfollow, ctx.session.accessToken);
+        if (result.code !== 200) {
+            let errorMessage = (result.code === 401 || result.code === 403)
+                ? 'Login to account first'
+                : `Server Error on following serial: ${result.errorMessage}`;
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, errorMessage);
+        }
+
+        let movieData = await API.getMovieData(movieId);
+        let title = "";
+        if (movieData) {
+            title = `: ${movieData.rawTitle} | ${movieData.year}`;
+        }
+
+        let buttons = [
+            Markup.button.callback(
+                `${isUnfollow ? 'Follow' : 'UnFollow'}`,
+                isUnfollow ? 'follow_serial_' + movieId : 'follow_serial_unfollow_' + movieId,
+            ),
+            Markup.button.callback(
+                `INFO`,
+                'movieID_' + movieId,
+            ),
+            Markup.button.callback(
+                `⚡️ Followings List`,
+                'followings_all',
+            ),
+            Markup.button.callback(
+                `⚡️ Followings Updates`,
+                'followings_all_updates',
+            ),
+        ];
+
+        return await ctx.telegram.editMessageText(
+            (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+            undefined, `Successfully ${isUnfollow ? 'UnFollowed' : 'Followed'} ${title}`,
+            Markup.inlineKeyboard(buttons, {columns: 2}), {columns: 2});
+
+    } catch (error) {
+        saveError(error);
+        await ctx.reply(`Error: ${error.toString()}`);
+    }
+}
+
+export async function sendFollowingUpdates(ctx) {
+    try {
+        if (!ctx.session.accessToken) {
+            return await ctx.reply(`login to account first`);
+        }
+
+        const {message_id} = await ctx.reply('⏳');
+
+        let movies = [];
+        let pageNumber = 1;
+        for (let i = 0; i < 3; i++) {
+            let result = await API.getFollowingSerials('info', pageNumber, ctx.session.accessToken);
+            movies.push(...result);
+            if (result.length === 0 || result.length % 12 !== 0) {
+                break;
+            }
+        }
+
+        if (movies.length === 0) {
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, "Follow some series first!");
+        }
+
+        let caption = '';
+        for (let i = 0; i < movies.length; i++) {
+            let latestData = movies[i].latestData;
+            caption += `
+${i + 1}. [${movies[i].rawTitle} | ${movies[i].year}](t.me/${config.botId}?start=movieID_${movies[i]._id})\n
+Update: S${latestData.season}E${latestData.episode} --- ${latestData.quality}
+Torrent: ${latestData.torrentLinks.toUpperCase() || '-'}
+HardSub: ${latestData.hardSub.toUpperCase() || '-'}
+WatchOnline: ${latestData.watchOnlineLink.toUpperCase() || '-'}\n`
+            caption += '———————————————————————————————';
+        }
+
+        caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
+
+        await ctx.deleteMessage(message_id);
+        return await ctx.telegram.sendMessage(
+            (ctx.update.callback_query || ctx.update).message.chat.id,
+            caption, {parse_mode: 'MarkdownV2',});
+    } catch (error) {
+        saveError(error);
+        await ctx.reply(`Error: ${error.toString()}`);
+    }
 }
 
 export function createMoviesDownloadLinksButtons(qualities) {
@@ -470,7 +601,7 @@ export function createSerialsDownloadLinkButtons(seasons, seasonNumber, episodeN
 
 export async function sendTrailer(ctx, movieID) {
     const {message_id} = await ctx.reply(`Uploading Movie Trailer`);
-    let movieData = await getMovieData(movieID, 'info');
+    let movieData = await API.getMovieData(movieID, 'info');
     if (movieData === 'error') {
         return await ctx.telegram.editMessageText(
             ctx.update.message.chat.id, message_id,
@@ -507,7 +638,7 @@ export async function sendTrailer(ctx, movieID) {
 }
 
 async function sendApps(ctx) {
-    let apps = await getApps();
+    let apps = await API.getApps();
     if (config.appsDownloadLink) {
         await ctx.reply('Check: https://github.com/ashkan-esz/downloader_app/releases/tag/release');
     }

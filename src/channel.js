@@ -104,6 +104,9 @@ async function sendMovieDataToChannel(bot, movieData) {
             caption += `📥 [Info](t.me/${config.botId}?start=movieID_${movieID}_${movieData.type})`;
             caption += ` || [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
         }
+        if (movieData.type.includes('serial')) {
+            caption += `⚡️ [Follow](t.me/${config.botId}?start=follow_serial_${movieID})\n`;
+        }
         if (config.webUrl) {
             caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
         }

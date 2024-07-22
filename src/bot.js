@@ -5,7 +5,7 @@ import {ProfilingIntegration} from "@sentry/profiling-node";
 import {
     createEpisodesButtons, createMoviesDownloadLinksButtons, createSeasonButtons,
     createSerialsDownloadLinkButtons,
-    getMenuButtons,
+    getMenuButtons, handleFollowSerial,
     handleMenuButtons,
     handleMovieData,
     handleMovieDownload,
@@ -75,7 +75,9 @@ bot.use(async (ctx, next) => {
             return;
         }
     } catch (error) {
-        saveError(error);
+        if (error.response?.error_code !== 403) {
+            saveError(error);
+        }
         return;
     }
 
@@ -90,6 +92,8 @@ bot.hears(/^\/start (.*)$/, ctx => {
         return sendTrailer(ctx, text.split('trailer_').pop());
     } else if (text.startsWith('download_')) {
         return handleMovieDownload(ctx, text);
+    } else if (text.startsWith('follow_serial')) {
+        return handleFollowSerial(ctx, text);
     }
 });
 
