@@ -233,12 +233,35 @@ async function sendMovieData(ctx, message_id, movieData) {
                 trailerLink = `🎬 [Trailer](t.me/${config.botId}?start=trailer_${movieID})\n`;
             }
         }
+        let status = capitalize(movieData.status);
+        if (movieData.type.includes('serial') && movieData.status === "running") {
+            let [_, torrentSeason, torrentEpisode] = movieData.latestData.torrentLinks.split(/[se]/gi).map(item => Number(item));
+            let latestSe = movieData.seasonEpisode.pop();
+            if (latestSe) {
+                if (
+                    (movieData.latestData.season === latestSe.seasonNumber && movieData.latestData.episode === latestSe.episodes) ||
+                    (torrentSeason === latestSe.seasonNumber && torrentEpisode === latestSe.episodes)
+                ) {
+                    status += " (waiting for new season)";
+                } else {
+                    latestSe = movieData.seasonEpisode.pop();
+                    if (latestSe) {
+                        if (
+                            (movieData.latestData.season === latestSe.seasonNumber && movieData.latestData.episode === latestSe.episodes) ||
+                            (torrentSeason === latestSe.seasonNumber && torrentEpisode === latestSe.episodes)
+                        ) {
+                            status += " (waiting for new season)";
+                        }
+                    }
+                }
+            }
+        }
         let caption = `
 🎬 ${movieData.rawTitle}\n${trailerLink ? 'TRAILER' : ''}
 🔹 Type : ${capitalize(movieData.type)}\n
 🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
 📅 Year : ${movieData.year}\n
-▶️ Status: ${capitalize(movieData.status)}\n
+▶️ Status: ${status}\n
 ⭕️ Genre : ${movieData.genres.map(g => capitalize(g)).join(', ')}\n
 🎭 Actors : ${movieData.actorsAndCharacters.filter(item => !!item.staff).map(item => item.staff.name).join(', ')}\n
 📜 Summary : \n${(movieData.summary.persian || movieData.summary.english).slice(0, 150)}...\n\n`;
@@ -257,15 +280,16 @@ async function sendMovieData(ctx, message_id, movieData) {
         if (movieData.type.includes('serial')) {
             caption += `⚡️ [Follow](t.me/${config.botId}?start=follow_serial_${movieID})\n`;
         }
+        if (config.channel) {
+            caption += `🆔 [Channel](t.me/${config.channel}) || `;
+        }
         if (config.webUrl) {
-            caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
+            caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year}) || `;
         }
         if (config.appDeepLink) {
             caption += `📱 [App](${config.appDeepLink}${movieData.type}/${movieID}/${movieData.year})\n`;
         }
-        if (config.channel) {
-            caption += `🆔 [@${config.channel}](t.me/${config.channel})`;
-        }
+        caption = caption.replace(/\s\|\|\s$/, '');
         caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
 
         let replied = false;
@@ -499,6 +523,7 @@ Update: S${latestData.season}E${latestData.episode} --- ${latestData.quality}
 Torrent: ${latestData.torrentLinks.toUpperCase() || '-'}
 HardSub: ${latestData.hardSub.toUpperCase() || '-'}
 WatchOnline: ${latestData.watchOnlineLink.toUpperCase() || '-'}\n`
+            caption = caption.replace(/\n?[a-z]+:\s((s1e0 ---)|-)/gi, '');
             caption += '———————————————————————————————';
         }
 

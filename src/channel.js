@@ -49,6 +49,7 @@ async function sendMovieDataToChannel(bot, movieData) {
         const newReleaseOrSeason = movieData.update_date === 0 || updateReason === 'season';
         const quality = movieData.latestData.quality.split(' - ')[0];
         let update = quality;
+        let status = capitalize(movieData.status);
         if (movieData.type.includes('serial')) {
             let latestSeason = movieData.latestData.season;
             let latestEpisode = movieData.latestData.episode;
@@ -64,6 +65,20 @@ async function sendMovieDataToChannel(bot, movieData) {
             }
             update = update.replace(/[()\[\]]/g, res => '\\' + res);
             update = `[${update}](t.me/${config.botId}?start=download_${movieID}_${movieData.type}_${latestSeason}_${latestEpisode})`;
+
+            if (movieData.status === "running") {
+                let latestSe = movieData.seasonEpisode.pop();
+                if (latestSe) {
+                    if (latestSe && latestSeason === latestSe.seasonNumber && latestEpisode === latestSe.episodes) {
+                        status += " (waiting for new season)";
+                    } else {
+                        latestSe = movieData.seasonEpisode.pop();
+                        if (latestSe && latestSeason === latestSe.seasonNumber && latestEpisode === latestSe.episodes) {
+                            status += " (waiting for new season)";
+                        }
+                    }
+                }
+            }
         }
 
         let caption = '';
@@ -73,7 +88,7 @@ async function sendMovieDataToChannel(bot, movieData) {
 🔹 Type : ${capitalize(movieData.type)}\n
 🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
 🖥 Update: UPDATE\n
-▶️ Status: ${capitalize(movieData.status)}\n\n`;
+▶️ Status: ${status}\n\n`;
         } else {
             caption = `
 🎬 ${movieData.rawTitle}\n
@@ -81,7 +96,7 @@ async function sendMovieDataToChannel(bot, movieData) {
 🎖 IMDB: ${movieData.rating.imdb} |Ⓜ️Meta: ${movieData.rating.metacritic} |🍅RT: ${movieData.rating.rottenTomatoes} | MAL: ${movieData.rating.myAnimeList}\n
 🖥 Update: UPDATE\n
 📅 Year : ${movieData.year}\n
-▶️ Status: ${capitalize(movieData.status)}\n
+▶️ Status: ${status}\n
 ⭕️ Genre : ${movieData.genres.slice(0, 6).map(g => capitalize(g)).join(', ')}\n
 🎭 Actors : ${movieData.actorsAndCharacters.filter(item => !!item.staff).slice(0, 5).map(item => item.staff.name).join(', ')}\n
 📜 Summary : \n${(movieData.summary.persian || movieData.summary.english).slice(0, 150)}...\n\n`;
@@ -97,25 +112,26 @@ async function sendMovieDataToChannel(bot, movieData) {
             }).join('\n')}\n\n`;
         }
 
-        let movieTitle = movieData.title || movieData.rawTitle;
-        if (newReleaseOrSeason) {
-            caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
-        } else {
+        // if (newReleaseOrSeason) {
+        //     caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
+        // } else {
             caption += `📥 [Info](t.me/${config.botId}?start=movieID_${movieID}_${movieData.type})`;
             caption += ` || [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
-        }
+        // }
         if (movieData.type.includes('serial')) {
             caption += `⚡️ [Follow](t.me/${config.botId}?start=follow_serial_${movieID})\n`;
         }
+        if (config.channel) {
+            caption += `🆔 [Channel](t.me/${config.channel}) || `;
+        }
         if (config.webUrl) {
-            caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year})\n`;
+            let movieTitle = movieData.title || movieData.rawTitle;
+            caption += `🌐 [Website](${config.webUrl}/${movieData.type}/${movieID}/${movieTitle.replace(/\s/g, '-') + '-' + movieData.year}) || `;
         }
         if (config.appDeepLink) {
             caption += `📱 [App](${config.appDeepLink}${movieData.type}/${movieID}/${movieData.year})\n`;
         }
-        if (config.channel) {
-            caption += `🆔 [@${config.channel}](t.me/${config.channel})`;
-        }
+        caption = caption.replace(/\s\|\|\s$/, '');
         caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
 
         let replied = false;
