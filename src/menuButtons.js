@@ -97,6 +97,14 @@ export function handleMenuButtons(bot) {
         return sendSortedMovies(ctx, 'followings');
     });
 
+    bot.action(/cast_options/, async (ctx) => {
+        return handleCastOptions(ctx);
+    });
+
+    bot.action(/cast_(actors|directors|writers|others)_/, async (ctx) => {
+        return sendCastList(ctx, '');
+    });
+
     bot.on(message('text'), (ctx) => {
         if (ctx.message?.text?.match(/username\s?:/i)) {
             return handleUserAccountLogin(ctx);
@@ -290,6 +298,9 @@ async function sendMovieData(ctx, message_id, movieData) {
             caption += `📱 [App](${config.appDeepLink}${movieData.type}/${movieID}/${movieData.year})\n`;
         }
         caption = caption.replace(/\s\|\|\s$/, '');
+
+        caption += `\n🎭 [All Cast](t.me/${config.botId}?start=cast_options_${movieID})\n`;
+
         caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
 
         let replied = false;
@@ -538,6 +549,125 @@ WatchOnline: ${latestData.watchOnlineLink.toUpperCase() || '-'}\n`
         await ctx.reply(`Error: ${error.toString()}`);
     }
 }
+
+//----------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------
+
+export async function handleCastOptions(ctx, text = '') {
+    try {
+        let temp = (ctx.update.callback_query?.data || text || '').split("_");
+        let movieId = temp.pop();
+        if (!movieId) {
+            return await ctx.reply(`Invalid MovieID`);
+        }
+
+        const {message_id} = await ctx.reply('⏳');
+
+        let result = await API.getMovieData(movieId, 'info');
+        if (result === 'error') {
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, 'Server Error on fetching Movie data');
+        } else if (!result) {
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, 'Movie data not found!');
+        }
+
+        let title = `: ${result.rawTitle} | ${result.year}`;
+
+        let buttons = [
+            Markup.button.callback(
+                '🎭 Actors And Characters',
+                'cast_actors_' + movieId,
+            ),
+            Markup.button.callback(
+                `⚡ Directors`,
+                'cast_directors_' + movieId,
+            ),
+            Markup.button.callback(
+                `⚡ Writers`,
+                'cast_writers_' + movieId,
+            ),
+            Markup.button.callback(
+                `⚡ Others`,
+                'cast_others_' + movieId,
+            ),
+        ];
+
+        return await ctx.telegram.editMessageText(
+            (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+            undefined, `Cast options for ${title}`,
+            Markup.inlineKeyboard(buttons, {columns: 2}), {columns: 2});
+
+    } catch (error) {
+        saveError(error);
+        await ctx.reply(`Error: ${error.toString()}`);
+    }
+}
+
+export async function sendCastList(ctx, text = '') {
+    try {
+        const temp = (ctx.update.callback_query?.data || text || '').split("_");
+        const movieId = temp.pop();
+        const type = temp.pop();
+        if (!movieId) {
+            return await ctx.reply(`Invalid MovieID`);
+        }
+
+        const {message_id} = await ctx.reply('⏳');
+
+        let result = await API.getMovieData(movieId, 'info');
+        if (result === 'error') {
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, 'Server Error on fetching Movie data');
+        } else if (!result) {
+            return await ctx.telegram.editMessageText(
+                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
+                undefined, 'Movie data not found!');
+        }
+
+        let title = `< ${result.rawTitle} | ${result.year} >`;
+        let header = `${capitalize(type)} of ${title}\n`;
+        let caption = header;
+        let resultArray = type === "actors"
+            ? result.actorsAndCharacters
+            : result.staff[type] || [];
+
+        for (let i = 0; i < resultArray.length; i++) {
+            let position = resultArray[i].actorPositions.join(', ');
+            let characterRole = resultArray[i].characterRole;
+            let staff = resultArray[i].staff;
+            let character = resultArray[i].character;
+
+            caption += `
+${i + 1}. 
+Cast: [${capitalize(staff?.name || '') || '-'}](t.me/${config.botId}?start=castID_staff_${staff?.id})${(position && position !== 'Actor') ? `\nRole: _${position}_` : ''}
+${character ? `Character: [${capitalize(character.name) || '-'}](t.me/${config.botId}?start=castID_character_${character?.id})` : 'Character: -'}
+${(character || characterRole || type === 'actors') ? `Character Role: _${characterRole || '-'}_` : ''}
+`.replace(/\n\n/, '\n').trim();
+
+            caption += '———————————————————————————————';
+        }
+
+        if (caption === header) {
+            caption += "Nothing found!";
+        }
+
+        caption = caption.replace(/[!.*|{}#+>=-]/g, res => '\\' + res).trim();
+        await ctx.deleteMessage(message_id);
+        return await ctx.telegram.sendMessage(
+            (ctx.update.callback_query || ctx.update).message.chat.id,
+            caption, {parse_mode: 'MarkdownV2',});
+    } catch (error) {
+        saveError(error);
+        await ctx.reply(`Error: ${error.toString()}`);
+    }
+}
+
+//----------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------
 
 export function createMoviesDownloadLinksButtons(qualities) {
     let links = qualities.map(q => q.links).flat(1);

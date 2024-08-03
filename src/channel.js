@@ -132,6 +132,9 @@ async function sendMovieDataToChannel(bot, movieData) {
             caption += `📱 [App](${config.appDeepLink}${movieData.type}/${movieID}/${movieData.year})\n`;
         }
         caption = caption.replace(/\s\|\|\s$/, '');
+
+        caption += `\n🎭 [All Cast](t.me/${config.botId}?start=cast_options_${movieID})\n`;
+
         caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
 
         let replied = false;

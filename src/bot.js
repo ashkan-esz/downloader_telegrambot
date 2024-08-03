@@ -5,10 +5,10 @@ import {ProfilingIntegration} from "@sentry/profiling-node";
 import {
     createEpisodesButtons, createMoviesDownloadLinksButtons, createSeasonButtons,
     createSerialsDownloadLinkButtons,
-    getMenuButtons, handleFollowSerial,
+    getMenuButtons, handleCastOptions, handleFollowSerial,
     handleMenuButtons,
     handleMovieData,
-    handleMovieDownload,
+    handleMovieDownload, sendCastList,
     sendTrailer
 } from "./menuButtons.js";
 import {saveError} from "./saveError.js";
@@ -94,6 +94,10 @@ bot.hears(/^\/start (.*)$/, ctx => {
         return handleMovieDownload(ctx, text);
     } else if (text.startsWith('follow_serial')) {
         return handleFollowSerial(ctx, text);
+    } else if (text.startsWith('cast_options')) {
+        return handleCastOptions(ctx, text);
+    } else if (text.match(/cast_(actors|directors|writers|others)_/)) {
+        return sendCastList(ctx, text);
     }
 });
 
