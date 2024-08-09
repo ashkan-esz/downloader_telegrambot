@@ -8,7 +8,7 @@ import {
     getMenuButtons, handleCastOptions, handleFollowSerial,
     handleMenuButtons,
     handleMovieData,
-    handleMovieDownload, sendCastList,
+    handleMovieDownload, sendCastCredits, sendCastInfo, sendCastList,
     sendTrailer
 } from "./menuButtons.js";
 import {saveError} from "./saveError.js";
@@ -98,6 +98,10 @@ bot.hears(/^\/start (.*)$/, ctx => {
         return handleCastOptions(ctx, text);
     } else if (text.match(/cast_(actors|directors|writers|others)_/)) {
         return sendCastList(ctx, text);
+    } else if (text.match(/castID_(staff|character)_/)) {
+        return sendCastCredits(ctx, text);
+    } else if (text.match(/castInfo_(staff|character)_/)) {
+        return sendCastInfo(ctx, text);
     }
 });
 

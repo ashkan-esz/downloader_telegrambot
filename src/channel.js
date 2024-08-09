@@ -98,12 +98,24 @@ async function sendMovieDataToChannel(bot, movieData) {
 📅 Year : ${movieData.year}\n
 ▶️ Status: ${status}\n
 ⭕️ Genre : ${movieData.genres.slice(0, 6).map(g => capitalize(g)).join(', ')}\n
-🎭 Actors : ${movieData.actorsAndCharacters.filter(item => !!item.staff).slice(0, 5).map(item => item.staff.name).join(', ')}\n
+🎭 Actors : ACTORS_LINKS\n
 📜 Summary : \n${(movieData.summary.persian || movieData.summary.english).slice(0, 150)}...\n\n`;
         }
 
         caption = caption.replace(/[()\[\]]/g, res => '\\' + res);
         caption = caption.replace("UPDATE", update);
+
+        let actors = movieData.actorsAndCharacters.filter(item => !!item.staff);
+        let uniqueActors = [];
+        for (let i = 0; i < actors.length; i++) {
+            if (!uniqueActors.find(u => u.staff.id === actors[i].staff.id)){
+                uniqueActors.push(actors[i]);
+            }
+        }
+        let actorsLinks = uniqueActors
+            .map(item => `[${capitalize(item.staff.name)}](t.me/${config.botId}?start=castInfo_staff_${item.staff.id})`)
+            .join(', ');
+        caption = caption.replace('ACTORS_LINKS', actorsLinks);
 
         if (movieData.relatedTitles && movieData.relatedTitles.length > 0 && newReleaseOrSeason) {
             caption += `🔗 Related: \n${movieData.relatedTitles.slice(0, 10).map(item => {

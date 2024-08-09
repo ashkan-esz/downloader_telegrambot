@@ -76,6 +76,37 @@ export async function getFollowingSerials(dataLevel, page, accessToken) {
 // ------------------------------------------------------
 // ------------------------------------------------------
 
+export async function searchCastById(type, id) {
+    try {
+        let result = await API.get(
+            `/movies/${type}/searchById/${id}?noUserStats=true`, {
+                cache: {
+                    ttl: 5 * 60 * 1000 //5 minute
+                }
+            });
+        return result.data.data;
+    } catch (error) {
+        return handleError(error, false);
+    }
+}
+
+export async function getCastCredits(type, id, page) {
+    try {
+        let result = await API.get(
+            `/movies/${type}/credits/${id}/${page}?noUserStats=true`, {
+                cache: {
+                    ttl: 5 * 60 * 1000 //5 minute
+                }
+            });
+        return result.data.data;
+    } catch (error) {
+        return handleError(error, false);
+    }
+}
+
+// ------------------------------------------------------
+// ------------------------------------------------------
+
 export async function searchMovie(title, dataLevel, page) {
     try {
         let result = await API.get(
