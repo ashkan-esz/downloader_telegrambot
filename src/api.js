@@ -76,6 +76,25 @@ export async function getFollowingSerials(dataLevel, page, accessToken) {
 // ------------------------------------------------------
 // ------------------------------------------------------
 
+export async function searchCast(type, name, dataLevel = "low", page= 1) {
+    try {
+        let searchType = type === "staff" ? "searchStaff" : "searchCharacter";
+        let result = await API.get(
+            `/movies/${searchType}/${dataLevel}/${page}`, {
+                params: {
+                    name: name,
+                    noUserStats: true,
+                },
+                cache: {
+                    ttl: 5 * 60 * 1000 //5 minute
+                }
+            });
+        return result.data.data;
+    } catch (error) {
+        return handleError(error, true);
+    }
+}
+
 export async function searchCastById(type, id) {
     try {
         let result = await API.get(

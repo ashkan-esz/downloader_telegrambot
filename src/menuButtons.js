@@ -12,6 +12,7 @@ const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
 export function getMenuButtons() {
     return Markup.keyboard([
         ['🔍 Search'],
+        ['🔍 Search Staff', '🔍 Search Character'],
         ['⚡️ Followings', '⚡️ Followings Updates'],
         ['🔥 News', '🔥 Updates'],
         ['🔥 Coming Soon Anime', '🔥 Airing Anime'],
@@ -27,6 +28,29 @@ export function getMenuButtons() {
 export function handleMenuButtons(bot) {
     bot.action('Home', (ctx) => moveToMainMenu(ctx));
     bot.hears('🏠 Home', (ctx) => moveToMainMenu(ctx));
+
+    bot.hears('🔍 Search Staff', (ctx) => {
+        ctx.sendMessage(
+            "Write the Staff name",
+            {
+                reply_markup: {
+                    force_reply: true,
+                    input_field_placeholder: "Staff name",
+                },
+            },
+        );
+    });
+    bot.hears('🔍 Search Character', (ctx) => {
+        ctx.sendMessage(
+            "Write the Character name",
+            {
+                reply_markup: {
+                    force_reply: true,
+                    input_field_placeholder: "Character name",
+                },
+            },
+        );
+    });
 
     bot.hears('🔍 Search', (ctx) => ctx.reply('Type the name of title to search'));
 
@@ -111,6 +135,13 @@ export function handleMenuButtons(bot) {
     });
 
     bot.on(message('text'), (ctx) => {
+        if (ctx.update?.message?.reply_to_message?.text === "Write the Staff name") {
+            return handleStaffAndCharacterSearch(ctx, 'staff');
+        }
+        if (ctx.update?.message?.reply_to_message?.text === "Write the Character name") {
+            return handleStaffAndCharacterSearch(ctx, 'character');
+        }
+
         if (ctx.message?.text?.match(/username\s?:/i)) {
             return handleUserAccountLogin(ctx);
         }
@@ -228,6 +259,54 @@ async function handleMovieSearch(ctx, title) {
     } else {
         let {message_id} = await ctx.reply(`Choose one of the options: (Page:${pageNumber})`,
             Markup.inlineKeyboard([...buttons, pagination, homeBtn]).resize());
+        ctx.session.lastMessageId = message_id;
+    }
+}
+
+async function handleStaffAndCharacterSearch(ctx, type) {
+    if (!ctx.session) {
+        ctx.session = {
+            ...(ctx.session || {}),
+            pageNumber: 1,
+            sortBase: '',
+        };
+    }
+
+    let name = ctx.update?.message?.text;
+
+    const replyMessage = `Searching \"${name}\"`;
+    const {message_id} = await ctx.reply(replyMessage);
+    let lastMessageId = message_id;
+
+    let searchResult = await API.searchCast(type, name, 'high', 1);
+    if (searchResult === 'error') {
+        return ctx.reply(`Server error on searching \"${name}\"`);
+    }
+    if (searchResult.length === 0) {
+        const replyMessage = `No result for \"${name}\"`;
+        return ctx.reply(replyMessage);
+    }
+
+    let buttons = searchResult.map(item => (
+        [Markup.button.callback(
+            `${item.rawName || capitalize(item.name)} | ${item.gender}`,
+            'castInfo_' + type + '_' + (item._id || item.id)
+        )]
+    ));
+
+    if (lastMessageId) {
+        await ctx.telegram.editMessageText(
+            (ctx.update.callback_query || ctx.update).message.chat.id, lastMessageId,
+            undefined, `Choose one of the options:`,
+            {
+                reply_markup: {
+                    inline_keyboard: [...buttons, homeBtn],
+                }
+            });
+        ctx.session.lastMessageId = lastMessageId;
+    } else {
+        let {message_id} = await ctx.reply(`Choose one of the options:`,
+            Markup.inlineKeyboard([...buttons, homeBtn]).resize());
         ctx.session.lastMessageId = message_id;
     }
 }
@@ -703,10 +782,13 @@ export async function sendCastCredits(ctx, text = '') {
                 //     (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
                 //     undefined, 'Server Error on fetching Movie data');
                 break;
-            } else if (!result) {
+            } else if (!result || result.length === 0) {
                 break;
             }
             credits = [...credits, ...result];
+            if (result.length % 12 !== 0) {
+                break;
+            }
         }
 
         if (credits.length === 0) {
@@ -816,7 +898,7 @@ export async function sendCastInfo(ctx, text = '') {
                 caption, {parse_mode: 'MarkdownV2',});
         }
 
-        await sendCastCredits(ctx, `castID_staff_${castData.id}`);
+        await sendCastCredits(ctx, `castID_${type}_${castData.id}`);
 
     } catch (error) {
         saveError(error);
