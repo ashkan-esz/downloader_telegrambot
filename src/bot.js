@@ -17,6 +17,9 @@ import cron from "node-cron";
 import {getMovieData, searchMovie} from "./api.js";
 import {capitalize} from "./utils.js";
 import {Mongo} from "@telegraf/session/mongodb";
+import { setDefaultResultOrder } from "node:dns";
+
+setDefaultResultOrder("ipv4first");
 
 if (!config.botToken) {
     throw new Error('"BOT_TOKEN" env var is required!');
@@ -45,6 +48,13 @@ const store = Mongo({
 
 const bot = new Telegraf(config.botToken);
 bot.use(session({store: store}));
+
+await bot.telegram.setMyCommands([
+    {command: 'start', description: 'Starts the system'},
+    {command: 'help', description: 'Help'},
+    {command: 'followings_all_updates', description: 'Updates of following titles'},
+    {command: 'followings_all', description: 'List of following titles'},
+])
 
 await bot.telegram.setChatMenuButton();
 

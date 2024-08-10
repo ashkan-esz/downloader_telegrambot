@@ -69,6 +69,7 @@ export function handleMenuButtons(bot) {
     bot.hears('⚡️ Followings Updates', (ctx) => sendFollowingUpdates(ctx));
 
     bot.hears('📕 Instruction', (ctx) => sendInstruction(ctx));
+    bot.hears('help', (ctx) => sendInstruction(ctx));
     bot.hears('🔒 Login', (ctx) => loginToAccount(ctx));
     bot.hears('📩 Toggle Account Notifications', (ctx) => toggleAccountNotification(ctx));
     bot.hears('Apps', (ctx) => sendApps(ctx));
@@ -114,8 +115,14 @@ export function handleMenuButtons(bot) {
         return handleFollowSerial(ctx);
     });
 
+    bot.hears(/followings_all_updates/, async (ctx) => {
+        return sendFollowingUpdates(ctx);
+    });
     bot.action(/followings_all_updates/, async (ctx) => {
         return sendFollowingUpdates(ctx);
+    });
+    bot.hears(/followings_all/, async (ctx) => {
+        return sendSortedMovies(ctx, 'followings');
     });
     bot.action(/followings_all/, async (ctx) => {
         return sendSortedMovies(ctx, 'followings');
