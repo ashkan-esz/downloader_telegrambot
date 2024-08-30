@@ -630,7 +630,9 @@ export async function sendFollowingUpdates(ctx) {
         }
 
         let caption = '';
+        let counter = 0;
         for (let i = 0; i < movies.length; i++) {
+            counter++;
             let latestData = movies[i].latestData;
             caption += `
 ${i + 1}. [${movies[i].rawTitle} | ${movies[i].year}](t.me/${config.botId}?start=movieID_${movies[i]._id})\n
@@ -640,14 +642,22 @@ HardSub: ${latestData.hardSub.toUpperCase() || '-'}
 WatchOnline: ${latestData.watchOnlineLink.toUpperCase() || '-'}\n`
             caption = caption.replace(/\n?[a-z]+:\s((s1e0 ---)|-)/gi, '');
             caption += '———————————————————————————————';
+
+            if (counter === 10 || i === movies.length - 1) {
+                caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
+
+                if (i === 9) {
+                    await ctx.deleteMessage(message_id);
+                }
+                await ctx.telegram.sendMessage(
+                    (ctx.update.callback_query || ctx.update).message.chat.id,
+                    caption, {parse_mode: 'MarkdownV2',});
+                caption = "";
+                counter = 0;
+            }
         }
 
-        caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
 
-        await ctx.deleteMessage(message_id);
-        return await ctx.telegram.sendMessage(
-            (ctx.update.callback_query || ctx.update).message.chat.id,
-            caption, {parse_mode: 'MarkdownV2',});
     } catch (error) {
         saveError(error);
         await ctx.reply(`Error: ${error.toString()}`);

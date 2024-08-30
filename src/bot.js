@@ -79,6 +79,9 @@ bot.use(async (ctx, next) => {
     }
 
     try {
+        if (!userId) {
+            return await next();
+        }
         let chatMember = await ctx.telegram.getChatMember('@' + config.channel, userId);
         if (chatMember.status === 'left' || chatMember.status === 'kicked') {
             await ctx.reply(`Please join our channel to use this bot: https://t.me/${config.channel}`);

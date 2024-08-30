@@ -221,11 +221,13 @@ function handleError(error, isResultArray = true) {
     if (error.response?.status === 404) {
         return isResultArray ? [] : null;
     }
-    if (error.response?.status === 502 || error.response?.status === 522) {
-        console.log(error.toString());
-        saveError(error, true);
-    } else {
-        saveError(error);
+    if (error.response?.status !== 521) {
+        if (error.response?.status === 502 || error.response?.status === 522) {
+            console.log(error.toString());
+            saveError(error, true);
+        } else {
+            saveError(error);
+        }
     }
     return 'error';
 }
