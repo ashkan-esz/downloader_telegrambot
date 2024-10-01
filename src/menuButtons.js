@@ -2,6 +2,7 @@ import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
 import * as API from "./api.js";
+import * as CHAT_API from "./api/chatApi.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
 import {getAnimeWatchOnlineLink, sleep} from "./channel.js";
@@ -21,7 +22,8 @@ export function getMenuButtons() {
         ['🔥 Top Likes', '🔥 Top Likes Of Month'],
         ['🔥 Top Follow Of Month'],
         ['📕 Instruction', 'Apps'],
-        ['🔒 Login', '📩 Toggle Account Notifications'],
+        ['🔒 Login', '🔒 SignUp'],
+        ['📩 Toggle Account Notifications'],
     ]).resize();
 }
 
@@ -71,6 +73,7 @@ export function handleMenuButtons(bot) {
     bot.hears('📕 Instruction', (ctx) => sendInstruction(ctx));
     bot.hears('help', (ctx) => sendInstruction(ctx));
     bot.hears('🔒 Login', (ctx) => loginToAccount(ctx));
+    bot.hears('🔒 SignUp', (ctx) => createAccount(ctx));
     bot.hears('📩 Toggle Account Notifications', (ctx) => toggleAccountNotification(ctx));
     bot.hears('Apps', (ctx) => sendApps(ctx));
 
@@ -149,6 +152,9 @@ export function handleMenuButtons(bot) {
             return handleStaffAndCharacterSearch(ctx, 'character');
         }
 
+        if (ctx.message?.text?.match(/email\s?:/i)) {
+            return handleUserSignup(ctx);
+        }
         if (ctx.message?.text?.match(/username\s?:/i)) {
             return handleUserAccountLogin(ctx);
         }
@@ -937,12 +943,13 @@ export function createMoviesDownloadLinksButtons(qualities) {
             l.link
         ));
     let torrentButtons = torrentLinks.filter(l => l.type !== "magnet").map(l => Markup.button.url(
-        `[Torrent]: ${l.info}`,
+        `[🔻Torrent]: ${l.info} - ${l.size}MB - ok:${l.okCount},bad:${l.badCount}`,
         l.link
     ));
+
     let torrentDirectButtons = torrentLinks.filter(l => l.localLink).map(l => Markup.button.url(
-        `[Torrent:LocalLink]: ${l.info}`,
-        config.localDownloadUrl + '/' + l.localLink.replace(/^\//, '')
+        `[⤵️✅Torrent:Direct]: ${l.info} - ${l.size}MB - expire:${l.localLinkExpire},ok:${l.okCount},bad:${l.badCount}`,
+        l.localLink
     ));
 
     return {
@@ -995,12 +1002,13 @@ export function createSerialsDownloadLinkButtons(seasons, seasonNumber, episodeN
         l.link
     ));
     let torrentButtons = torrentLinks.filter(l => l.type !== "magnet").map(l => Markup.button.url(
-        `[Torrent]: ${l.info}`,
+        `[🔻Torrent]: ${l.info} - ${l.size}MB - ok:${l.okCount},bad:${l.badCount}`,
         l.link
     ));
+
     let torrentDirectButtons = torrentLinks.filter(l => l.localLink).map(l => Markup.button.url(
-        `[Torrent:LocalLink]: ${l.info}`,
-        config.localDownloadUrl + '/' + l.localLink.replace(/^\//, '')
+        `[⤵️✅Torrent:Direct]: ${l.info} - ${l.size}MB - expire:${l.localLinkExpire},ok:${l.okCount},bad:${l.badCount}`,
+        l.localLink
     ));
 
     return {
@@ -1102,6 +1110,19 @@ async function loginToAccount(ctx) {
     }
 }
 
+async function createAccount(ctx) {
+    try {
+        // if (ctx.session.accessToken) {
+        //     await ctx.reply(`NOTE: currently login as << ${ctx.session.username} >>\nLogOut before creating account`);
+        // }
+        await ctx.reply("Send username and password in below format");
+        await ctx.reply("username: user \npassword: password \nemail: test-mail@gmail.com");
+    } catch (error) {
+        saveError(error);
+        await ctx.reply(`Error: ${error.toString()}`);
+    }
+}
+
 async function handleUserAccountLogin(ctx) {
     try {
         let temp = ctx.message.text.split(/(username\s?:)|(password\s?:)/gi).filter(Boolean).map(item => item.trim());
@@ -1159,6 +1180,89 @@ async function handleUserAccountLogin(ctx) {
         }
         await ctx.reply(`Successfully login as << ${result.username} >>`);
 
+    } catch (error) {
+        saveError(error);
+    }
+}
+
+async function handleUserSignup(ctx) {
+    try {
+        let temp = ctx.message.text.split(/(username\s?:)|(password\s?:)|(email\s?:)/gi).filter(Boolean).map(item => item.trim());
+        let user = temp[1] || '';
+        let pass = temp[3] || '';
+        let email = temp[5] || '';
+        if (!user || !pass || !email) {
+            return await ctx.reply("Invalid username, password, email format");
+        }
+
+        let errors = [];
+        if (user.length < 6) {
+            errors.push("Username Length Must Be More Than 6");
+        } else if (user.length > 50) {
+            errors.push("Username Length Must Be Less Than 50");
+        }
+        if (!user.match(/^[a-z|\d_-]+$/i)) {
+            errors.push("Only a-z, 0-9, and underscores are allowed for username");
+        }
+
+        if (pass.length < 8) {
+            errors.push("Password Length Must Be More Than 8");
+        } else if (pass.length > 50) {
+            errors.push("Password Length Must Be Less Than 50");
+        }
+        if (user === pass) {
+            errors.push("Username and Password cannot be equal");
+        }
+        if (errors.length > 0) {
+            return await ctx.reply(errors.join('\n'));
+        }
+
+        let result = await CHAT_API.createAccount({
+            username: user,
+            password: pass,
+            email: email,
+            confirmPassword: pass,
+            deviceInfo: {
+                "appName": config.botId,
+                "appVersion": "1.0.0",
+                "os": "UnKnown",
+                "deviceModel": "Unknown"
+            },
+            // botId: config.serverBotToken,
+            // chatId: ctx.update.message.chat.id.toString(),
+            // botUsername: ctx.update.message.chat.username,
+        });
+        if (result.code !== 200 && result.code !== 201) {
+            return await ctx.reply(`Error: ${result.errorMessage}`);
+        }
+        await ctx.reply(`Successfully Created account as << ${result.data.username} >>\nTrying to login to account`);
+
+        //try to logIn by api.login
+        let loginResult = await API.loginToUserAccount({
+            username_email: user,
+            password: pass,
+            botId: config.serverBotToken,
+            chatId: ctx.update.message.chat.id.toString(),
+            botUsername: ctx.update.message.chat.username,
+        });
+        if (loginResult.code !== 200) {
+            return await ctx.reply(`Error: ${loginResult.errorMessage}`);
+        }
+        if (!ctx.session) {
+            ctx.session = {
+                ...(ctx.session || {}),
+                pageNumber: 1,
+                sortBase: '',
+                accessToken: loginResult.accessToken,
+                username: loginResult.username,
+                notification: loginResult.notification,
+            }
+        } else {
+            ctx.session.accessToken = loginResult.accessToken;
+            ctx.session.username = loginResult.username;
+            ctx.session.notification = loginResult.notification;
+        }
+        await ctx.reply(`Successfully login as << ${loginResult.username} >>`);
     } catch (error) {
         saveError(error);
     }
