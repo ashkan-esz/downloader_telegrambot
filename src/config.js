@@ -9,6 +9,7 @@ export default Object.freeze({
     serverBotToken: process.env.SERVER_BOT_TOKEN,
     apiUrl: process.env.API_URL,
     chatApiUrl: process.env.CHAT_API_URL,
+    torrentApiUrl: process.env.TORRENT_API_URL,
     webUrl: process.env.WEB_URL,
     mongodbUrl: process.env.MONGODB_DATABASE_URL,
     localDownloadUrl: process.env.LOCAL_DOWNLOAD_URL,

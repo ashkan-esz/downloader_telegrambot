@@ -2,14 +2,27 @@ import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
 import * as API from "./api.js";
-import * as CHAT_API from "./api/chatApi.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
 import {getAnimeWatchOnlineLink, sleep} from "./channel.js";
 import {addLinkToMap, generateDirectLinkForTorrent, sendTorrentDownloads, sendTorrentUsage} from "./torrent.js";
+import {
+    createUserAccount,
+    handleUserAccountLogin,
+    handleUserSignup,
+    loginToAccount,
+    toggleAccountNotification
+} from "./package/user.js";
+import {
+    handleCastOptions,
+    handleStaffAndCharacterSearch,
+    sendCastCredits,
+    sendCastInfo,
+    sendCastList
+} from "./package/cast.js";
 
 
-const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
+export const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
 
 export function getMenuButtons() {
     return Markup.keyboard([
@@ -75,7 +88,7 @@ export function handleMenuButtons(bot) {
     bot.hears('📕 Instruction', (ctx) => sendInstruction(ctx));
     bot.hears('help', (ctx) => sendInstruction(ctx));
     bot.hears('🔒 Login', (ctx) => loginToAccount(ctx));
-    bot.hears('🔒 SignUp', (ctx) => createAccount(ctx));
+    bot.hears('🔒 SignUp', (ctx) => createUserAccount(ctx));
     bot.hears('📩 Toggle Account Notifications', (ctx) => toggleAccountNotification(ctx));
     bot.hears('Apps', (ctx) => sendApps(ctx));
 
@@ -281,54 +294,6 @@ async function handleMovieSearch(ctx, title) {
     } else {
         let {message_id} = await ctx.reply(`Choose one of the options: (Page:${pageNumber})`,
             Markup.inlineKeyboard([...buttons, pagination, homeBtn]).resize());
-        ctx.session.lastMessageId = message_id;
-    }
-}
-
-async function handleStaffAndCharacterSearch(ctx, type) {
-    if (!ctx.session) {
-        ctx.session = {
-            ...(ctx.session || {}),
-            pageNumber: 1,
-            sortBase: '',
-        };
-    }
-
-    let name = ctx.update?.message?.text;
-
-    const replyMessage = `Searching \"${name}\"`;
-    const {message_id} = await ctx.reply(replyMessage);
-    let lastMessageId = message_id;
-
-    let searchResult = await API.searchCast(type, name, 'high', 1);
-    if (searchResult === 'error') {
-        return ctx.reply(`Server error on searching \"${name}\"`);
-    }
-    if (searchResult.length === 0) {
-        const replyMessage = `No result for \"${name}\"`;
-        return ctx.reply(replyMessage);
-    }
-
-    let buttons = searchResult.map(item => (
-        [Markup.button.callback(
-            `${item.rawName || capitalize(item.name)} | ${item.gender}`,
-            'castInfo_' + type + '_' + (item._id || item.id)
-        )]
-    ));
-
-    if (lastMessageId) {
-        await ctx.telegram.editMessageText(
-            (ctx.update.callback_query || ctx.update).message.chat.id, lastMessageId,
-            undefined, `Choose one of the options:`,
-            {
-                reply_markup: {
-                    inline_keyboard: [...buttons, homeBtn],
-                }
-            });
-        ctx.session.lastMessageId = lastMessageId;
-    } else {
-        let {message_id} = await ctx.reply(`Choose one of the options:`,
-            Markup.inlineKeyboard([...buttons, homeBtn]).resize());
         ctx.session.lastMessageId = message_id;
     }
 }
@@ -687,265 +652,6 @@ WatchOnline: ${latestData.watchOnlineLink.toUpperCase() || '-'}\n`
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
 
-export async function handleCastOptions(ctx, text = '') {
-    try {
-        let temp = (ctx.update.callback_query?.data || text || '').split("_");
-        let movieId = temp.pop();
-        if (!movieId) {
-            return await ctx.reply(`Invalid MovieID`);
-        }
-
-        const {message_id} = await ctx.reply('⏳');
-
-        let result = await API.getMovieData(movieId, 'info');
-        if (result === 'error') {
-            return await ctx.telegram.editMessageText(
-                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-                undefined, 'Server Error on fetching Movie data');
-        } else if (!result) {
-            return await ctx.telegram.editMessageText(
-                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-                undefined, 'Movie data not found!');
-        }
-
-        let title = `: ${result.rawTitle} | ${result.year}`;
-
-        let buttons = [
-            Markup.button.callback(
-                '🎭 Actors And Characters',
-                'cast_actors_' + movieId,
-            ),
-            Markup.button.callback(
-                `⚡ Directors`,
-                'cast_directors_' + movieId,
-            ),
-            Markup.button.callback(
-                `⚡ Writers`,
-                'cast_writers_' + movieId,
-            ),
-            Markup.button.callback(
-                `⚡ Others`,
-                'cast_others_' + movieId,
-            ),
-        ];
-
-        return await ctx.telegram.editMessageText(
-            (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-            undefined, `Cast options for ${title}`,
-            Markup.inlineKeyboard(buttons, {columns: 2}), {columns: 2});
-
-    } catch (error) {
-        saveError(error);
-        await ctx.reply(`Error: ${error.toString()}`);
-    }
-}
-
-export async function sendCastList(ctx, text = '') {
-    try {
-        const temp = (ctx.update.callback_query?.data || text || '').split("_");
-        const movieId = temp.pop();
-        const type = temp.pop();
-        if (!movieId) {
-            return await ctx.reply(`Invalid MovieID`);
-        }
-
-        const {message_id} = await ctx.reply('⏳');
-
-        let result = await API.getMovieData(movieId, 'info');
-        if (result === 'error') {
-            return await ctx.telegram.editMessageText(
-                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-                undefined, 'Server Error on fetching Movie data');
-        } else if (!result) {
-            return await ctx.telegram.editMessageText(
-                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-                undefined, 'Movie data not found!');
-        }
-
-        let title = `< ${result.rawTitle} | ${result.year} >`;
-        let header = `${capitalize(type)} of ${title}\n`;
-        let caption = header;
-        let resultArray = type === "actors"
-            ? result.actorsAndCharacters
-            : result.staff[type] || [];
-
-        for (let i = 0; i < resultArray.length; i++) {
-            let position = resultArray[i].actorPositions.join(', ');
-            let characterRole = resultArray[i].characterRole;
-            let staff = resultArray[i].staff;
-            let character = resultArray[i].character;
-
-            caption += `
-${i + 1}. 
-Cast: [${capitalize(staff?.name || '') || '-'}](t.me/${config.botId}?start=castID_staff_${staff?.id})${(position && position !== 'Actor') ? `\nRole: _${position}_` : ''}
-${character ? `Character: [${capitalize(character.name) || '-'}](t.me/${config.botId}?start=castID_character_${character?.id})` : 'Character: -'}
-${(character || characterRole || type === 'actors') ? `Character Role: _${characterRole || '-'}_` : ''}
-`.replace(/\n\n/, '\n').trim();
-
-            caption += '———————————————————————————————';
-        }
-
-        if (caption === header) {
-            caption += "Nothing found!";
-        }
-
-        caption = caption.replace(/[!.*|{}#+>=-]/g, res => '\\' + res).trim();
-        await ctx.deleteMessage(message_id);
-        return await ctx.telegram.sendMessage(
-            (ctx.update.callback_query || ctx.update).message.chat.id,
-            caption, {parse_mode: 'MarkdownV2',});
-    } catch (error) {
-        saveError(error);
-        await ctx.reply(`Error: ${error.toString()}`);
-    }
-}
-
-export async function sendCastCredits(ctx, text = '') {
-    try {
-        const temp = (text || ctx.update.callback_query?.data || '').split("_");
-        const castId = temp.pop();
-        const type = temp.pop();
-        if (!castId) {
-            return await ctx.reply(`Invalid castID`);
-        }
-
-        const {message_id} = await ctx.reply('⏳');
-
-        let credits = [];
-        for (let i = 1; i <= 2; i++) {
-            let result = await API.getCastCredits(type, castId, i);
-            if (result === 'error') {
-                // return await ctx.telegram.editMessageText(
-                //     (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-                //     undefined, 'Server Error on fetching Movie data');
-                break;
-            } else if (!result || result.length === 0) {
-                break;
-            }
-            credits = [...credits, ...result];
-            if (result.length % 12 !== 0) {
-                break;
-            }
-        }
-
-        if (credits.length === 0) {
-            return await ctx.telegram.editMessageText(
-                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-                undefined, 'Movie data not found!');
-        }
-
-        let header = `Credits:\n`;
-        let caption = header;
-
-        for (let i = 0; i < credits.length; i++) {
-            let position = credits[i].actorPositions.join(', ');
-            let characterRole = credits[i].characterRole;
-            let staff = credits[i].staff;
-            let character = credits[i].character;
-            let movie = credits[i].movie;
-
-            caption += `
-${i + 1}. 
-${(position && position !== 'Actor') ? `\nRole: _${position}_` : ''}
-${staff ? `Staff: [${capitalize(staff.name) || '-'}](t.me/${config.botId}?start=castID_staff_${staff?.id})` : 'Staff: -'}
-${character ? `Character: [${capitalize(character.name) || '-'}](t.me/${config.botId}?start=castID_character_${character?.id})` : 'Character: -'}
-${(character || characterRole || type === 'actors') ? `Character Role: _${characterRole || '-'}_` : ''}
-Movie: [${movie?.rawTitle} | ${capitalize(movie?.type || '')}](t.me/${config.botId}?start=movieID_${movie?._id || movie?.movieId})
-`.replace(/\n\n/g, '\n').trim();
-
-            caption += '———————————————————————————————';
-        }
-
-        if (caption === header) {
-            caption += "Nothing found!";
-        }
-
-        caption = caption.replace(/[!.*|{}#+>=-]/g, res => '\\' + res).trim();
-        await ctx.deleteMessage(message_id);
-        return await ctx.telegram.sendMessage(
-            (ctx.update.callback_query || ctx.update).message.chat.id,
-            caption, {parse_mode: 'MarkdownV2',});
-    } catch (error) {
-        saveError(error);
-        await ctx.reply(`Error: ${error.toString()}`);
-    }
-}
-
-export async function sendCastInfo(ctx, text = '') {
-    try {
-        const temp = (ctx.update.callback_query?.data || text || '').split("_");
-        const castId = temp.pop();
-        const type = temp.pop();
-        if (!castId) {
-            return await ctx.reply(`Invalid castID`);
-        }
-
-        const {message_id} = await ctx.reply('⏳');
-
-        let castData = await API.searchCastById(type, castId);
-        if (castData === 'error') {
-            return await ctx.telegram.editMessageText(
-                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-                undefined, 'Server Error on fetching data');
-        } else if (!castData) {
-            return await ctx.telegram.editMessageText(
-                (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-                undefined, 'data not found!');
-        }
-
-        let caption = `
-🎬 ${castData.rawName}
-⭕️ Gender : ${castData.gender || '-'}\n
-📅 Age : ${castData.age || '-'}\n
-🎂 Birthday : ${castData.birthday || '-'}\n
-☠️ Deathday : ${castData.deathday || '-'}\n
-🇺🇳 Country: ${castData.country || '-'}\n
-👁 Eye Color: ${castData.eyeColor || '-'}\n
-▶️ Hair Color: ${castData.hairColor || '-'}\n
-▶️ Height: ${castData.height || '-'}\n
-▶️ Weight: ${castData.weight || '-'}\n
-📜 About : ${castData.about || '-'}\n\n`;
-
-        caption = caption.replace(/[()\[\]]/g, res => '\\' + res);
-        caption = caption.replace(/[!.*|{}#+>=-]/g, res => '\\' + res).trim();
-
-        let replied = false;
-        if (castData.imageData?.url || castData.imageData?.originalUrl) {
-            try {
-                await ctx.replyWithPhoto(castData.imageData.url, {
-                    caption: caption,
-                    parse_mode: 'MarkdownV2',
-                });
-                replied = true;
-            } catch (error) {
-                if (castData.imageData?.originalUrl) {
-                    await ctx.replyWithPhoto(castData.imageData.originalUrl, {
-                        caption: caption,
-                        parse_mode: 'MarkdownV2',
-                    });
-                    replied = true;
-                }
-            }
-        }
-
-        if (!replied) {
-            await ctx.deleteMessage(message_id);
-            await ctx.telegram.sendMessage(
-                (ctx.update.callback_query || ctx.update).message.chat.id,
-                caption, {parse_mode: 'MarkdownV2',});
-        }
-
-        await sendCastCredits(ctx, `castID_${type}_${castData.id}`);
-
-    } catch (error) {
-        saveError(error);
-        await ctx.reply(`Error: ${error.toString()}`);
-    }
-}
-
-//----------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------
-
 async function sendGenerateDirectTorrentButtons(ctx, torrentLinks, movieId) {
     let generateDirectButtons = torrentLinks.filter(l => l.type !== "magnet" && !l.localLink).map(l => {
         let linkId = addLinkToMap(l.link);
@@ -1127,195 +833,6 @@ _Example: @${botId} jujutsu kaisen -season 1 episode 5_\n
     `;
     text = text.replace(/[!.|{}#+>=\-\[\]]/g, res => '\\' + res);
     await ctx.reply(text, {parse_mode: 'MarkdownV2'});
-}
-
-async function loginToAccount(ctx) {
-    try {
-        if (ctx.session.accessToken) {
-            await ctx.reply(`NOTE: currently login as << ${ctx.session.username} >>\ncontinue if you want to login again`);
-        }
-        await ctx.reply("Send username and password in below format");
-        await ctx.reply("username: user \npassword: password");
-    } catch (error) {
-        saveError(error);
-        await ctx.reply(`Error: ${error.toString()}`);
-    }
-}
-
-async function createAccount(ctx) {
-    try {
-        // if (ctx.session.accessToken) {
-        //     await ctx.reply(`NOTE: currently login as << ${ctx.session.username} >>\nLogOut before creating account`);
-        // }
-        await ctx.reply("Send username and password in below format");
-        await ctx.reply("username: user \npassword: password \nemail: test-mail@gmail.com");
-    } catch (error) {
-        saveError(error);
-        await ctx.reply(`Error: ${error.toString()}`);
-    }
-}
-
-async function handleUserAccountLogin(ctx) {
-    try {
-        let temp = ctx.message.text.split(/(username\s?:)|(password\s?:)/gi).filter(Boolean).map(item => item.trim());
-        let user = temp[1] || '';
-        let pass = temp[3] || '';
-        if (!user || !pass) {
-            return await ctx.reply("Invalid username, password format");
-        }
-
-        let errors = [];
-        if (user.length < 6) {
-            errors.push("Username Length Must Be More Than 6");
-        } else if (user.length > 50) {
-            errors.push("Username Length Must Be Less Than 50");
-        }
-        if (!user.match(/^[a-z|\d_-]+$/i)) {
-            errors.push("Only a-z, 0-9, and underscores are allowed for username");
-        }
-
-        if (pass.length < 8) {
-            errors.push("Password Length Must Be More Than 8");
-        } else if (pass.length > 50) {
-            errors.push("Password Length Must Be Less Than 50");
-        }
-        if (user === pass) {
-            errors.push("Username and Password cannot be equal");
-        }
-        if (errors.length > 0) {
-            return await ctx.reply(errors.join('\n'));
-        }
-
-        let result = await API.loginToUserAccount({
-            username_email: user,
-            password: pass,
-            botId: config.serverBotToken,
-            chatId: ctx.update.message.chat.id.toString(),
-            botUsername: ctx.update.message.chat.username,
-        });
-        if (result.code !== 200) {
-            return await ctx.reply(`Error: ${result.errorMessage}`);
-        }
-        if (!ctx.session) {
-            ctx.session = {
-                ...(ctx.session || {}),
-                pageNumber: 1,
-                sortBase: '',
-                accessToken: result.accessToken,
-                username: result.username,
-                notification: result.notification,
-            }
-        } else {
-            ctx.session.accessToken = result.accessToken;
-            ctx.session.username = result.username;
-            ctx.session.notification = result.notification;
-        }
-        await ctx.reply(`Successfully login as << ${result.username} >>`);
-
-    } catch (error) {
-        saveError(error);
-    }
-}
-
-async function handleUserSignup(ctx) {
-    try {
-        let temp = ctx.message.text.split(/(username\s?:)|(password\s?:)|(email\s?:)/gi).filter(Boolean).map(item => item.trim());
-        let user = temp[1] || '';
-        let pass = temp[3] || '';
-        let email = temp[5] || '';
-        if (!user || !pass || !email) {
-            return await ctx.reply("Invalid username, password, email format");
-        }
-
-        let errors = [];
-        if (user.length < 6) {
-            errors.push("Username Length Must Be More Than 6");
-        } else if (user.length > 50) {
-            errors.push("Username Length Must Be Less Than 50");
-        }
-        if (!user.match(/^[a-z|\d_-]+$/i)) {
-            errors.push("Only a-z, 0-9, and underscores are allowed for username");
-        }
-
-        if (pass.length < 8) {
-            errors.push("Password Length Must Be More Than 8");
-        } else if (pass.length > 50) {
-            errors.push("Password Length Must Be Less Than 50");
-        }
-        if (user === pass) {
-            errors.push("Username and Password cannot be equal");
-        }
-        if (errors.length > 0) {
-            return await ctx.reply(errors.join('\n'));
-        }
-
-        let result = await CHAT_API.createAccount({
-            username: user,
-            password: pass,
-            email: email,
-            confirmPassword: pass,
-            deviceInfo: {
-                "appName": config.botId,
-                "appVersion": "1.0.0",
-                "os": "UnKnown",
-                "deviceModel": "Unknown"
-            },
-            // botId: config.serverBotToken,
-            // chatId: ctx.update.message.chat.id.toString(),
-            // botUsername: ctx.update.message.chat.username,
-        });
-        if (result.code !== 200 && result.code !== 201) {
-            return await ctx.reply(`Error: ${result.errorMessage}`);
-        }
-        await ctx.reply(`Successfully Created account as << ${result.data.username} >>\nTrying to login to account`);
-
-        //try to logIn by api.login
-        let loginResult = await API.loginToUserAccount({
-            username_email: user,
-            password: pass,
-            botId: config.serverBotToken,
-            chatId: ctx.update.message.chat.id.toString(),
-            botUsername: ctx.update.message.chat.username,
-        });
-        if (loginResult.code !== 200) {
-            return await ctx.reply(`Error: ${loginResult.errorMessage}`);
-        }
-        if (!ctx.session) {
-            ctx.session = {
-                ...(ctx.session || {}),
-                pageNumber: 1,
-                sortBase: '',
-                accessToken: loginResult.accessToken,
-                username: loginResult.username,
-                notification: loginResult.notification,
-            }
-        } else {
-            ctx.session.accessToken = loginResult.accessToken;
-            ctx.session.username = loginResult.username;
-            ctx.session.notification = loginResult.notification;
-        }
-        await ctx.reply(`Successfully login as << ${loginResult.username} >>`);
-    } catch (error) {
-        saveError(error);
-    }
-}
-
-async function toggleAccountNotification(ctx) {
-    try {
-        if (!ctx.session.accessToken) {
-            return await ctx.reply(`login to account first`);
-        }
-
-        let result = await API.changeAccountNotificationFlag(!ctx.session.notification, ctx.session.accessToken);
-        if (result.code !== 200) {
-            return await ctx.reply(`Error: ${result.errorMessage}`);
-        }
-        ctx.session.notification = result.notification;
-        await ctx.reply(`Account notification is now ${result.notification ? 'enabled' : 'disabled'}`);
-    } catch (error) {
-        saveError(error);
-        await ctx.reply(`Error: ${error.toString()}`);
-    }
 }
 
 function getPaginationButtons(ctx, searchResult, data) {

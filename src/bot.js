@@ -1,15 +1,13 @@
 import config from "./config.js";
 import {Markup, session, Telegraf} from "telegraf";
 import * as Sentry from "@sentry/node";
-import {ProfilingIntegration} from "@sentry/profiling-node";
+import {nodeProfilingIntegration} from "@sentry/profiling-node";
 import {
     createEpisodesButtons, createMoviesDownloadLinksButtons, createSeasonButtons,
     createSerialsDownloadLinkButtons,
-    getMenuButtons, handleCastOptions, handleFollowSerial,
-    handleMenuButtons,
-    handleMovieData,
-    handleMovieDownload, sendCastCredits, sendCastInfo, sendCastList,
-    sendTrailer
+    getMenuButtons, handleFollowSerial,
+    handleMenuButtons, handleMovieData,
+    handleMovieDownload, sendTrailer
 } from "./menuButtons.js";
 import {saveError} from "./saveError.js";
 import {getAnimeWatchOnlineLink, sendMoviesToChannel, sleep} from "./channel.js";
@@ -17,7 +15,9 @@ import cron from "node-cron";
 import {getMovieData, searchMovie} from "./api.js";
 import {capitalize} from "./utils.js";
 import {Mongo} from "@telegraf/session/mongodb";
-import { setDefaultResultOrder } from "node:dns";
+import {setDefaultResultOrder} from "node:dns";
+import {generateDirectLinkForTorrent} from "./torrent.js";
+import {handleCastOptions, sendCastCredits, sendCastInfo, sendCastList} from "./package/cast.js";
 
 setDefaultResultOrder("ipv4first");
 
@@ -32,7 +32,7 @@ if (config.nodeEnv !== 'dev') {
 Sentry.init({
     dsn: config.sentryDns,
     integrations: [
-        new ProfilingIntegration(),
+        nodeProfilingIntegration(),
     ],
     // Performance Monitoring
     tracesSampleRate: 0.01,
@@ -46,7 +46,9 @@ const store = Mongo({
     collection: "downloader-bot-context",
 });
 
-const bot = new Telegraf(config.botToken);
+const bot = new Telegraf(config.botToken, {
+    handlerTimeout: 2 * 60 * 1000,
+});
 bot.use(session({store: store}));
 
 await bot.telegram.setMyCommands([
@@ -115,6 +117,8 @@ bot.hears(/^\/start (.*)$/, ctx => {
         return sendCastCredits(ctx, text);
     } else if (text.match(/castInfo_(staff|character)_/)) {
         return sendCastInfo(ctx, text);
+    } else if (text.match(/generate_direct_/)) {
+        return generateDirectLinkForTorrent(ctx, text);
     }
 });
 
