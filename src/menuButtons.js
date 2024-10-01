@@ -6,6 +6,7 @@ import * as CHAT_API from "./api/chatApi.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
 import {getAnimeWatchOnlineLink, sleep} from "./channel.js";
+import {addLinkToMap, generateDirectLinkForTorrent, sendTorrentDownloads, sendTorrentUsage} from "./torrent.js";
 
 
 const homeBtn = [Markup.button.callback('🏠 Home', 'Home')];
@@ -24,6 +25,7 @@ export function getMenuButtons() {
         ['📕 Instruction', 'Apps'],
         ['🔒 Login', '🔒 SignUp'],
         ['📩 Toggle Account Notifications'],
+        ['📩 Torrent Usage', '📩 Torrent Downloads Status']
     ]).resize();
 }
 
@@ -76,6 +78,9 @@ export function handleMenuButtons(bot) {
     bot.hears('🔒 SignUp', (ctx) => createAccount(ctx));
     bot.hears('📩 Toggle Account Notifications', (ctx) => toggleAccountNotification(ctx));
     bot.hears('Apps', (ctx) => sendApps(ctx));
+
+    bot.hears('📩 Torrent Usage', (ctx) => sendTorrentUsage(ctx));
+    bot.hears('📩 Torrent Downloads Status', (ctx) => sendTorrentDownloads(ctx));
 
     bot.hears('More...', (ctx) => {
         if (ctx.session && ctx.session.sortBase) {
@@ -142,6 +147,10 @@ export function handleMenuButtons(bot) {
     });
     bot.action(/castInfo_(staff|character)_/, async (ctx) => {
         return sendCastInfo(ctx, '');
+    });
+
+    bot.action(/generate_direct_/, async (ctx) => {
+        return generateDirectLinkForTorrent(ctx, '');
     });
 
     bot.on(message('text'), (ctx) => {
@@ -487,11 +496,13 @@ export async function handleMovieDownload(ctx, text) {
                     undefined, `\"${movieData.rawTitle}\" => No Download Link Found!`);
             }
 
-            return await ctx.telegram.editMessageText(
+            await ctx.telegram.editMessageText(
                 (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
                 undefined, `\"${movieData.rawTitle}\" => Download Links`,
                 Markup.inlineKeyboard(buttons, {columns: columns}),
             );
+
+            return await sendGenerateDirectTorrentButtons(ctx, torrentLinks, data[0]);
         } else {
             //its serial, choose season
             if (movieData.seasons.length === 0) {
@@ -543,11 +554,14 @@ export async function handleMovieDownload(ctx, text) {
             caption += `${i + 1}. Watch Online: ${watchOnlineLinks[i]}\n`;
         }
     }
-    return await ctx.telegram.editMessageText(
+
+    await ctx.telegram.editMessageText(
         (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
         undefined, caption,
         Markup.inlineKeyboard(buttons, {columns: columns}),
     );
+
+    return await sendGenerateDirectTorrentButtons(ctx, torrentLinks, data[0]);
 }
 
 export async function handleFollowSerial(ctx, text = '') {
@@ -931,6 +945,24 @@ export async function sendCastInfo(ctx, text = '') {
 
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
+
+async function sendGenerateDirectTorrentButtons(ctx, torrentLinks, movieId) {
+    let generateDirectButtons = torrentLinks.filter(l => l.type !== "magnet" && !l.localLink).map(l => {
+        let linkId = addLinkToMap(l.link);
+        return {
+            text: `⤵️GENERATE: ${l.info} \nSize: ${l.size}MB \nOk: ${l.okCount}, Bad:${l.badCount} \nLINK: ${l.link}`.replace(/[!.*|(){}#+>=_-]/g, res => '\\' + res),
+            link: `t.me/${config.botId}?start=generate_direct_${movieId}_${linkId}`,
+        }
+    });
+
+    if (generateDirectButtons.length > 0) {
+        let generateDirectCaption = "------ Generate Direct Link For Torrent ------\n\n".replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
+        for (let i = 0; i < generateDirectButtons.length; i++) {
+            generateDirectCaption += `${i + 1}\\. [${generateDirectButtons[i].text}](${generateDirectButtons[i].link})\n\n`
+        }
+        return await ctx.reply(generateDirectCaption, {parse_mode: 'MarkdownV2',});
+    }
+}
 
 export function createMoviesDownloadLinksButtons(qualities) {
     let links = qualities.map(q => q.links).flat(1);
