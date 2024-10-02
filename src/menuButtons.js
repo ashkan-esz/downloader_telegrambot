@@ -2,6 +2,7 @@ import config from "./config.js";
 import {Markup} from "telegraf";
 import {message} from "telegraf/filters";
 import * as API from "./api.js";
+import * as TORRENT_API from "./api/torrentApi.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
 import {getAnimeWatchOnlineLink, sleep} from "./channel.js";
@@ -38,7 +39,7 @@ export function getMenuButtons() {
         ['📕 Instruction', 'Apps'],
         ['🔒 Login', '🔒 SignUp'],
         ['📩 Toggle Account Notifications'],
-        ['📩 Torrent Usage', '📩 Torrent Downloads Status']
+        ['📩 Torrent Usage', '📩 Torrent Downloads']
     ]).resize();
 }
 
@@ -93,7 +94,7 @@ export function handleMenuButtons(bot) {
     bot.hears('Apps', (ctx) => sendApps(ctx));
 
     bot.hears('📩 Torrent Usage', (ctx) => sendTorrentUsage(ctx));
-    bot.hears('📩 Torrent Downloads Status', (ctx) => sendTorrentDownloads(ctx));
+    bot.hears('📩 Torrent Downloads', (ctx) => sendTorrentDownloads(ctx));
 
     bot.hears('More...', (ctx) => {
         if (ctx.session && ctx.session.sortBase) {
@@ -653,13 +654,22 @@ WatchOnline: ${latestData.watchOnlineLink.toUpperCase() || '-'}\n`
 //----------------------------------------------------------------------------------
 
 async function sendGenerateDirectTorrentButtons(ctx, torrentLinks, movieId) {
-    let generateDirectButtons = torrentLinks.filter(l => l.type !== "magnet" && !l.localLink).map(l => {
-        let linkId = addLinkToMap(l.link);
-        return {
-            text: `⤵️GENERATE: ${l.info} \nSize: ${l.size}MB \nOk: ${l.okCount}, Bad:${l.badCount} \nLINK: ${l.link}`.replace(/[!.*|(){}#+>=_-]/g, res => '\\' + res),
-            link: `t.me/${config.botId}?start=generate_direct_${movieId}_${linkId}`,
-        }
-    });
+    let limitsResult = await TORRENT_API.getTorrentLimits();
+    if (limitsResult.code === 200 && limitsResult.data.torrentDownloadDisabled) {
+        //service is disabled
+        return
+    }
+
+    let generateDirectButtons = torrentLinks
+        .filter(l => l.type !== "magnet" && !l.localLink && (l.size <= limitsResult.data.downloadFileSizeLimitMb || !limitsResult.data.downloadFileSizeLimitMb))
+        .map(l => {
+            let linkId = addLinkToMap(l.link);
+            return {
+                // text: `⤵️GENERATE: ${l.info} \nSize: ${l.size}MB \nOk: ${l.okCount}, Bad:${l.badCount} \nLINK: ${decodeURIComponent(l.link)}`.replace(/[!.*|(){}#+>=_-]/g, res => '\\' + res),
+                text: `⤵️${l.info} \nSize: ${l.size}MB \nOk: ${l.okCount}, Bad:${l.badCount}`.replace(/[!.*|(){}#+>=_-]/g, res => '\\' + res),
+                link: `t.me/${config.botId}?start=generate_direct_${movieId}_${linkId}`,
+            }
+        });
 
     if (generateDirectButtons.length > 0) {
         let generateDirectCaption = "------ Generate Direct Link For Torrent ------\n\n".replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);

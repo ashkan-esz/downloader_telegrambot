@@ -8,7 +8,7 @@ const API = setupCache(
         baseURL: config.apiUrl,
         // baseURL: 'http://localhost:3000',
     }), {
-        storage: buildMemoryStorage(false, 5 * 60 * 1000, false),
+        storage: buildMemoryStorage(false, 3 * 60 * 1000, false),
     }
 );
 
@@ -131,7 +131,7 @@ export async function searchMovie(title, dataLevel, page) {
         let result = await API.get(
             `/movies/searchMovie/${dataLevel}/${page}?title=${title}&noUserStats=true`, {
                 cache: {
-                    ttl: 5 * 60 * 1000 //5 minute
+                    ttl: 2 * 60 * 1000 //2 minute
                 }
             });
         return result.data.data;
@@ -145,8 +145,10 @@ export async function getMovieData(movieId, dataLevel = 'high', season = '') {
         let seasonFilter = season ? `&seasons=${season}` : '';
         let result = await API.get(
             `/movies/searchByID/${movieId}/${dataLevel}?noUserStats=true&embedRelatedTitles=true&embedStaffAndCharacter=true${seasonFilter}`, {
-                cache: {
-                    ttl: 5 * 60 * 1000 //5 minute
+                cache:  {
+                    ttl: season !== ''
+                        ? 1 * 60 * 1000 //1 minute
+                        : 3 * 60 * 1000 //3 minute
                 }
             });
         return result.data.data;
@@ -162,7 +164,7 @@ export async function getSortedMovies(sortBase, dataLevel, page) {
         let result = await API.get(
             `/movies/sortedMovies/${sortBase}/${types}/${dataLevel}/0-10/0-10/${page}?embedStaffAndCharacter=true&noUserStats=true`, {
                 cache: {
-                    ttl: 5 * 60 * 1000 //5 minute
+                    ttl: 2 * 60 * 1000 //2 minute
                 }
             });
         return result.data.data;
@@ -217,7 +219,7 @@ export async function getApps() {
     }
 }
 
-function handleError(error, isResultArray = true) {
+export function handleError(error, isResultArray = true) {
     if (error.response?.status === 404) {
         return isResultArray ? [] : null;
     }
