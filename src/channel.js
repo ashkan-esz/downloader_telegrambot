@@ -3,7 +3,13 @@ import {getChannelNewsAndUpdates} from "./api.js";
 import {capitalize} from "./utils.js";
 import {saveError} from "./saveError.js";
 
+export const torrentSourcesNames = Object.freeze([
+    'tokyotosho', 'shanaproject', 'nyaa', 'eztv',
+]);
+
 export async function sendMoviesToChannel(bot) {
+    let imdbLimit = Math.max(config.minIMDBRate + 0.6, 8.5);
+    let malLimit = Math.max(config.minMALRate + 0.6, 8.5);
     while (true) {
         let movies = [];
         let retryCounter = 0;
@@ -11,8 +17,13 @@ export async function sendMoviesToChannel(bot) {
             movies = await getChannelNewsAndUpdates();
             if (movies && movies !== 'error') {
                 for (let i = 0; i < movies.length; i++) {
-                    await sendMovieDataToChannel(bot, movies[i]);
-                    await sleep(1000);
+                    if (
+                        (movies[i].rating.imdb >= imdbLimit || movies[i].rating.myAnimeList >= malLimit) ||
+                        movies[i].sources.find(s => !torrentSourcesNames.includes(s.sourceName))
+                    ) {
+                        await sendMovieDataToChannel(bot, movies[i]);
+                        await sleep(1000);
+                    }
                 }
                 break;
             } else if (movies === 'error') {
@@ -108,7 +119,7 @@ async function sendMovieDataToChannel(bot, movieData) {
         let actors = movieData.actorsAndCharacters.filter(item => !!item.staff);
         let uniqueActors = [];
         for (let i = 0; i < actors.length; i++) {
-            if (!uniqueActors.find(u => u.staff.id === actors[i].staff.id)){
+            if (!uniqueActors.find(u => u.staff.id === actors[i].staff.id)) {
                 uniqueActors.push(actors[i]);
             }
         }
@@ -127,8 +138,8 @@ async function sendMovieDataToChannel(bot, movieData) {
         // if (newReleaseOrSeason) {
         //     caption += `📥 [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
         // } else {
-            caption += `📥 [Info](t.me/${config.botId}?start=movieID_${movieID}_${movieData.type})`;
-            caption += ` || [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
+        caption += `📥 [Info](t.me/${config.botId}?start=movieID_${movieID}_${movieData.type})`;
+        caption += ` || [Download](t.me/${config.botId}?start=download_${movieID}_${movieData.type})\n`;
         // }
         if (movieData.type.includes('serial')) {
             caption += `⚡️ [Follow](t.me/${config.botId}?start=follow_serial_${movieID})\n`;

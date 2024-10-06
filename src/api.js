@@ -76,7 +76,7 @@ export async function getFollowingSerials(dataLevel, page, accessToken) {
 // ------------------------------------------------------
 // ------------------------------------------------------
 
-export async function searchCast(type, name, dataLevel = "low", page= 1) {
+export async function searchCast(type, name, dataLevel = "low", page = 1) {
     try {
         let searchType = type === "staff" ? "searchStaff" : "searchCharacter";
         let result = await API.get(
@@ -145,7 +145,7 @@ export async function getMovieData(movieId, dataLevel = 'high', season = '') {
         let seasonFilter = season ? `&seasons=${season}` : '';
         let result = await API.get(
             `/movies/searchByID/${movieId}/${dataLevel}?noUserStats=true&embedRelatedTitles=true&embedStaffAndCharacter=true${seasonFilter}`, {
-                cache:  {
+                cache: {
                     ttl: season !== ''
                         ? 1 * 60 * 1000 //1 minute
                         : 3 * 60 * 1000 //3 minute

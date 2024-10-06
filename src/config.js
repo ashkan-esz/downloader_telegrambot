@@ -15,6 +15,7 @@ export default Object.freeze({
     localDownloadUrl: process.env.LOCAL_DOWNLOAD_URL,
     appDeepLink: process.env.APP_DEEP_LINK,
     channel: process.env.CHANNEL,
+    updatesChannel: process.env.UPDATES_CHANNEL,
     botId: process.env.BOT_ID,
     sentryDns: process.env.SENTRY_DNS,
     minIMDBRate: Number(process.env.MIN_IMDB_RATE || 0),

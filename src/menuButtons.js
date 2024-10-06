@@ -201,22 +201,39 @@ export async function sendSortedMovies(ctx, sortBase) {
         ctx.session.sortBase = sortBase;
     }
 
-    await ctx.reply(`Fetching Movie Data (Page: ${ctx.session.pageNumber})`,
-        Markup.keyboard([['🏠 Home', 'More...']]).resize());
+    // api send 12, want to show 6 per page
+    let apiPage = Math.floor((ctx.session.pageNumber + 1) / 2);
+
+    const {message_id} = await ctx.reply(`Fetching Movie Data (Page: ${ctx.session.pageNumber})`);
     let movies = sortBase === "followings"
-        ? await API.getFollowingSerials('info', ctx.session.pageNumber, ctx.session.accessToken)
+        ? await API.getFollowingSerials('info', apiPage, ctx.session.accessToken)
         : (sortBase === 'news' || sortBase === 'updates')
-            ? await API.getNewsAndUpdates(sortBase, 'info', ctx.session.pageNumber)
-            : await API.getSortedMovies(sortBase, 'info', ctx.session.pageNumber);
+            ? await API.getNewsAndUpdates(sortBase, 'info', apiPage)
+            : await API.getSortedMovies(sortBase, 'info', apiPage);
     if (movies === 'error') {
         return await ctx.reply('Server Error on fetching Movies data');
-    } else if (movies.length === 0) {
+    }
+
+    if (ctx.session.pageNumber % 2 === 0) {
+        movies = movies.slice(6)
+    } else {
+        movies = movies.slice(0, 6);
+    }
+
+    if (movies.length === 0) {
         return await ctx.reply('Movies not found!');
     }
+
+    await ctx.deleteMessage(message_id);
+    await ctx.reply(`Movie Data (Page: ${ctx.session.pageNumber}) ---> Items: ${movies.length}`,
+        Markup.keyboard([['🏠 Home', 'More...']]).resize(),
+    );
+
     for (let i = 0; i < movies.length; i++) {
         await sendMovieData(ctx, '', movies[i]);
         await sleep(1000);
     }
+    await ctx.reply(`End of Movies (Page: ${ctx.session.pageNumber})`);
 }
 
 export async function handleMovieData(ctx, movieID) {
@@ -314,28 +331,30 @@ async function sendMovieData(ctx, message_id, movieData) {
             }
         }
         let status = capitalize(movieData.status);
-        if (movieData.type.includes('serial') && movieData.status === "running") {
-            let [_, torrentSeason, torrentEpisode] = movieData.latestData.torrentLinks.split(/[se]/gi).map(item => Number(item));
-            let latestSe = movieData.seasonEpisode.pop();
-            if (latestSe) {
-                if (
-                    (movieData.latestData.season === latestSe.seasonNumber && movieData.latestData.episode === latestSe.episodes) ||
-                    (torrentSeason === latestSe.seasonNumber && torrentEpisode === latestSe.episodes)
-                ) {
-                    status += " (waiting for new season)";
-                } else {
-                    latestSe = movieData.seasonEpisode.pop();
-                    if (latestSe) {
-                        if (
-                            (movieData.latestData.season === latestSe.seasonNumber && movieData.latestData.episode === latestSe.episodes) ||
-                            (torrentSeason === latestSe.seasonNumber && torrentEpisode === latestSe.episodes)
-                        ) {
-                            status += " (waiting for new season)";
-                        }
-                    }
-                }
-            }
-        }
+
+        // if (movieData.type.includes('serial') && movieData.status === "running") {
+        //     let [_, torrentSeason, torrentEpisode] = movieData.latestData.torrentLinks.split(/[se]/gi).map(item => Number(item));
+        //     let latestSe = movieData.seasonEpisode.pop();
+        //     if (latestSe && latestSe.episodes > 11) {
+        //         if (
+        //             (movieData.latestData.season === latestSe.seasonNumber && movieData.latestData.episode === latestSe.episodes) ||
+        //             (torrentSeason === latestSe.seasonNumber && torrentEpisode === latestSe.episodes)
+        //         ) {
+        //             status += " (waiting for new season)";
+        //         } else {
+        //             latestSe = movieData.seasonEpisode.pop();
+        //             if (latestSe && latestSe.episodes > 11) {
+        //                 if (
+        //                     (movieData.latestData.season === latestSe.seasonNumber && movieData.latestData.episode === latestSe.episodes) ||
+        //                     (torrentSeason === latestSe.seasonNumber && torrentEpisode === latestSe.episodes)
+        //                 ) {
+        //                     status += " (waiting for new season)";
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+
         let caption = `
 🎬 ${movieData.rawTitle}\n${trailerLink ? 'TRAILER' : ''}
 🔹 Type : ${capitalize(movieData.type)}\n
