@@ -510,22 +510,31 @@ export async function handleMovieDownload(ctx, text) {
     if (links.length === 0 && torrentLinks.length === 0) {
         return await ctx.telegram.editMessageText(
             (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
-            undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => No Download Link Found!`);
+            undefined, `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) =\\> No Download Link Found!`);
     }
 
-    let caption = `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) => Download Links\n\n`;
+    let caption = `\"${movieData.rawTitle}\" (S${data[2]}E${data[3]}) =\\> Download Links\n\n`;
     if (movieData.apiIds?.gogoID) {
         let watchOnlineLinks = getAnimeWatchOnlineLink(movieData.apiIds.gogoID, Number(data[3]));
         for (let i = 0; i < watchOnlineLinks.length; i++) {
-            caption += `${i + 1}. Watch Online: ${watchOnlineLinks[i]}\n`;
+            caption += `\> ${i + 1}. Watch Online: ${watchOnlineLinks[i]}\n`;
         }
     }
 
+    caption = caption.replace(/[()\[\]!.*|{}#+=_-]/g, res => '\\' + res);
     await ctx.telegram.editMessageText(
         (ctx.update.callback_query || ctx.update).message.chat.id, message_id,
         undefined, caption,
-        Markup.inlineKeyboard(buttons, {columns: columns}),
+        {
+            reply_markup: Markup.inlineKeyboard(buttons, {columns: columns}).reply_markup,
+            parse_mode: "MarkdownV2",
+            link_preview_options: {
+                is_disabled: true,
+            },
+        },
     );
+
+    await moveToMainMenu(ctx);
 
     return await sendGenerateDirectTorrentButtons(ctx, torrentLinks, data[0]);
 }
@@ -627,7 +636,7 @@ Torrent: ${latestData.torrentLinks.toUpperCase() || '-'}
 HardSub: ${latestData.hardSub.toUpperCase() || '-'}
 WatchOnline: ${latestData.watchOnlineLink.toUpperCase() || '-'}\n`
             caption = caption.replace(/\n?[a-z]+:\s((s1e0 ---)|-)/gi, '');
-            caption += '———————————————————————————————';
+            caption += '—————————————————————————';
 
             if (counter === 10 || i === movies.length - 1) {
                 caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
@@ -637,7 +646,10 @@ WatchOnline: ${latestData.watchOnlineLink.toUpperCase() || '-'}\n`
                 }
                 await ctx.telegram.sendMessage(
                     (ctx.update.callback_query || ctx.update).message.chat.id,
-                    caption, {parse_mode: 'MarkdownV2',});
+                    caption, {
+                        parse_mode: 'MarkdownV2',
+                        reply_markup: {},
+                    });
                 caption = "";
                 counter = 0;
             }
@@ -687,7 +699,7 @@ export function createMoviesDownloadLinksButtons(qualities) {
     let buttons = links
         .filter(l => !l.info.toLowerCase().includes('censored'))
         .map(l => Markup.button.url(
-            `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
+            `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')} - ${l.sourceName}`,
             l.link
         ));
     let torrentButtons = torrentLinks.filter(l => l.type !== "magnet").map(l => Markup.button.url(
@@ -746,7 +758,7 @@ export function createSerialsDownloadLinkButtons(seasons, seasonNumber, episodeN
     let torrentLinks = episodes.find(e => e.episodeNumber === episodeNumber)?.torrentLinks || [];
 
     let buttons = links.map(l => Markup.button.url(
-        `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')}`,
+        `${l.info.replace(encodersRegex, '').replace(/(Hard|Soft)sub/i, 'subbed').replace(/\.+/g, '.')} - ${l.sourceName}`,
         l.link
     ));
     let torrentButtons = torrentLinks.filter(l => l.type !== "magnet").map(l => Markup.button.url(

@@ -214,7 +214,7 @@ export async function sleep(ms) {
 
 export function getAnimeWatchOnlineLink(gogoID, episodeNumber) {
     return [
-        `https://marinn.me/watch/${gogoID}-episode-${episodeNumber}`,
+        // `https://marinn.me/watch/${gogoID}-episode-${episodeNumber}`,
         `https://ryuk.to/watch/${gogoID}-episode-${episodeNumber}`,
         `https://anitaku.so/${gogoID}-episode-${episodeNumber}`,
     ]

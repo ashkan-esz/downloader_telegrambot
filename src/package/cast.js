@@ -3,7 +3,7 @@ import {Markup} from "telegraf";
 import * as API from "../api.js";
 import {capitalize} from "../utils.js";
 import {saveError} from "../saveError.js";
-import {homeBtn} from "../menuButtons.js";
+import {getMenuButtons, homeBtn} from "../menuButtons.js";
 
 export async function handleStaffAndCharacterSearch(ctx, type) {
     if (!ctx.session) {
@@ -22,11 +22,11 @@ export async function handleStaffAndCharacterSearch(ctx, type) {
 
     let searchResult = await API.searchCast(type, name, 'high', 1);
     if (searchResult === 'error') {
-        return ctx.reply(`Server error on searching \"${name}\"`);
+        return ctx.reply(`Server error on searching \"${name}\"`, getMenuButtons());
     }
     if (searchResult.length === 0) {
         const replyMessage = `No result for \"${name}\"`;
-        return ctx.reply(replyMessage);
+        return ctx.reply(replyMessage, getMenuButtons());
     }
 
     let buttons = searchResult.map(item => (
@@ -58,7 +58,7 @@ export async function handleCastOptions(ctx, text = '') {
         let temp = (ctx.update.callback_query?.data || text || '').split("_");
         let movieId = temp.pop();
         if (!movieId) {
-            return await ctx.reply(`Invalid MovieID`);
+            return await ctx.reply(`Invalid MovieID`, getMenuButtons());
         }
 
         const {message_id} = await ctx.reply('⏳');
@@ -148,7 +148,7 @@ ${character ? `Character: [${capitalize(character.name) || '-'}](t.me/${config.b
 ${(character || characterRole || type === 'actors') ? `Character Role: _${characterRole || '-'}_` : ''}
 `.replace(/\n\n/, '\n').trim();
 
-            caption += '———————————————————————————————';
+            caption += '—————————————————————————';
         }
 
         if (caption === header) {
@@ -219,7 +219,7 @@ ${(character || characterRole || type === 'actors') ? `Character Role: _${charac
 Movie: [${movie?.rawTitle} | ${capitalize(movie?.type || '')}](t.me/${config.botId}?start=movieID_${movie?._id || movie?.movieId})
 `.replace(/\n\n/g, '\n').trim();
 
-            caption += '———————————————————————————————';
+            caption += '—————————————————————————';
         }
 
         if (caption === header) {
