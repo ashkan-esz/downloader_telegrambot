@@ -6,7 +6,13 @@ import * as TORRENT_API from "./api/torrentApi.js";
 import {capitalize, encodersRegex} from "./utils.js";
 import {saveError} from "./saveError.js";
 import {getAnimeWatchOnlineLink, sleep} from "./channel.js";
-import {addLinkToMap, generateDirectLinkForTorrent, sendTorrentDownloads, sendTorrentUsage} from "./torrent.js";
+import {
+    addLinkToMap,
+    generateDirectLinkForTorrent,
+    handleTorrentSearch,
+    sendTorrentDownloads,
+    sendTorrentUsage
+} from "./package/torrent.js";
 import {
     createUserAccount,
     handleUserAccountLogin,
@@ -39,6 +45,7 @@ export function getMenuButtons() {
         ['📕 Instruction', 'Apps'],
         ['🔒 Login', '🔒 SignUp'],
         ['📩 Toggle Account Notifications'],
+        ['📩 Search Torrent'],
         ['📩 Torrent Usage', '📩 Torrent Downloads']
     ]).resize();
 }
@@ -65,6 +72,17 @@ export function handleMenuButtons(bot) {
                 reply_markup: {
                     force_reply: true,
                     input_field_placeholder: "Character name",
+                },
+            },
+        );
+    });
+    bot.hears('📩 Search Torrent', (ctx) => {
+        ctx.sendMessage(
+            "Write the name to search",
+            {
+                reply_markup: {
+                    force_reply: true,
+                    input_field_placeholder: "search name",
                 },
             },
         );
@@ -166,6 +184,9 @@ export function handleMenuButtons(bot) {
     bot.action(/generate_direct_/, async (ctx) => {
         return generateDirectLinkForTorrent(ctx, '');
     });
+    bot.action(/searchTorrent_/i, async (ctx) => {
+        return handleTorrentSearch(ctx, '', true);
+    });
 
     bot.on(message('text'), (ctx) => {
         if (ctx.update?.message?.reply_to_message?.text === "Write the Staff name") {
@@ -173,6 +194,9 @@ export function handleMenuButtons(bot) {
         }
         if (ctx.update?.message?.reply_to_message?.text === "Write the Character name") {
             return handleStaffAndCharacterSearch(ctx, 'character');
+        }
+        if (ctx.update?.message?.reply_to_message?.text === "Write the name to search") {
+            return handleTorrentSearch(ctx, '', false);
         }
 
         if (ctx.message?.text?.match(/email\s?:/i)) {
@@ -895,7 +919,7 @@ function getPaginationButtons(ctx, searchResult, data) {
     ];
 }
 
-function moveToMainMenu(ctx) {
+export function moveToMainMenu(ctx) {
     ctx.session = {
         ...(ctx.session || {}),
         pageNumber: 1,

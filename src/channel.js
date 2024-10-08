@@ -77,19 +77,19 @@ async function sendMovieDataToChannel(bot, movieData) {
             update = update.replace(/[()\[\]]/g, res => '\\' + res);
             update = `[${update}](t.me/${config.botId}?start=download_${movieID}_${movieData.type}_${latestSeason}_${latestEpisode})`;
 
-            if (movieData.status === "running") {
-                let latestSe = movieData.seasonEpisode.pop();
-                if (latestSe) {
-                    if (latestSe && latestSeason === latestSe.seasonNumber && latestEpisode === latestSe.episodes) {
-                        status += " (waiting for new season)";
-                    } else {
-                        latestSe = movieData.seasonEpisode.pop();
-                        if (latestSe && latestSeason === latestSe.seasonNumber && latestEpisode === latestSe.episodes) {
-                            status += " (waiting for new season)";
-                        }
-                    }
-                }
-            }
+            // if (movieData.status === "running") {
+            //     let latestSe = movieData.seasonEpisode.pop();
+            //     if (latestSe) {
+            //         if (latestSe && latestSeason === latestSe.seasonNumber && latestEpisode === latestSe.episodes) {
+            //             status += " (waiting for new season)";
+            //         } else {
+            //             latestSe = movieData.seasonEpisode.pop();
+            //             if (latestSe && latestSeason === latestSe.seasonNumber && latestEpisode === latestSe.episodes) {
+            //                 status += " (waiting for new season)";
+            //             }
+            //         }
+            //     }
+            // }
         }
 
         let caption = '';

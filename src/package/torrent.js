@@ -1,7 +1,11 @@
-import * as TORRENT_API from "./api/torrentApi.js";
-import {saveError} from "./saveError.js";
+import config from "../config.js";
+import * as TORRENT_API from "../api/torrentApi.js";
+import {saveError} from "../saveError.js";
 import TimeAgo from "javascript-time-ago";
 import en from "javascript-time-ago/locale/en";
+import * as API from "../api.js";
+import {getMenuButtons, moveToMainMenu} from "../menuButtons.js";
+import {capitalize} from "../utils.js";
 
 TimeAgo.addDefaultLocale(en);
 const timeAgo = new TimeAgo('en-US');
@@ -266,4 +270,72 @@ TorrentLeach-Service: ${limitsResult.data.torrentDownloadDisabled ? 'ðŸ“›' : 'âœ
         saveError(error);
         await ctx.reply(`Error: ${error.toString()}`);
     }
+}
+
+//----------------------------------------------------------
+//----------------------------------------------------------
+
+export async function handleTorrentSearch(ctx, text, addToDb = false) {
+    if (!ctx.session) {
+        ctx.session = {
+            ...(ctx.session || {}),
+            pageNumber: 1,
+            sortBase: '',
+        };
+    }
+    if (!ctx.session.accessToken) {
+        return await ctx.reply(`login to account first`);
+    }
+
+    const name = (text || ctx.update.callback_query?.data || ctx.update?.message?.text || '')
+        .replace(/^searchTorrent_/i, "").replace(/_/g, " ");
+
+    const replyMessage = addToDb
+        ? `Adding \"${name}\" to database`
+        : `Searching \"${name}\" in torrent`;
+    const {message_id} = await ctx.reply(replyMessage);
+    let lastMessageId = message_id;
+
+    let searchResult = await API.searchTorrentByName(ctx.session.accessToken, name, addToDb);
+    if (!searchResult || searchResult === 'error') {
+        return ctx.reply(`Server error on searching \"${name}\"`, getMenuButtons());
+    }
+    if (searchResult.length === 0 && !addToDb) {
+        const replyMessage = `No result for \"${name}\"`;
+        return ctx.reply(replyMessage, getMenuButtons());
+    }
+
+    if (!addToDb) {
+        let caption = "------------ Search Result ------------\n";
+        for (let i = 0; i < searchResult.length; i++) {
+            caption += `
+${i + 1}. Title: [${searchResult[i].title}](t.me/${config.botId}?start=searchTorrent_${searchResult[i].title.trim().replace(/\s+/g, '_')})
+Sources: ${searchResult[i].sources.map(item => capitalize(item)).join(', ')}
+Links Found: ${searchResult[i].links.length}\n\n`;
+        }
+        caption = caption.replace(/[!.*|{}#+>=_-]/g, res => '\\' + res);
+
+        await ctx.telegram.editMessageText(
+            (ctx.update.callback_query || ctx.update).message.chat.id, lastMessageId,
+            undefined, caption,
+            {
+                parse_mode: "MarkdownV2",
+                link_preview_options: {
+                    is_disabled: true,
+                }
+            });
+    } else {
+        // let caption = `Added to database: \n ${JSON.stringify(searchResult, null, 8)}`;
+        let caption = `\"${name}\" Added to database`;
+        await ctx.telegram.editMessageText(
+            (ctx.update.callback_query || ctx.update).message.chat.id, lastMessageId,
+            undefined, caption,
+            {
+                link_preview_options: {
+                    is_disabled: true,
+                }
+            });
+    }
+
+    await moveToMainMenu(ctx);
 }

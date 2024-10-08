@@ -16,7 +16,7 @@ import {getMovieData, searchMovie} from "./api.js";
 import {capitalize} from "./utils.js";
 import {Mongo} from "@telegraf/session/mongodb";
 import {setDefaultResultOrder} from "node:dns";
-import {generateDirectLinkForTorrent} from "./torrent.js";
+import {generateDirectLinkForTorrent, handleTorrentSearch} from "./package/torrent.js";
 import {handleCastOptions, sendCastCredits, sendCastInfo, sendCastList} from "./package/cast.js";
 
 setDefaultResultOrder("ipv4first");
@@ -119,6 +119,8 @@ bot.hears(/^\/start (.*)$/, ctx => {
         return sendCastInfo(ctx, text);
     } else if (text.match(/generate_direct_/)) {
         return generateDirectLinkForTorrent(ctx, text);
+    } else if (text.match(/searchTorrent_/i)) {
+        return handleTorrentSearch(ctx, text, true);
     }
 });
 

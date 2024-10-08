@@ -129,7 +129,7 @@ export async function getCastCredits(type, id, page) {
 export async function searchMovie(title, dataLevel, page) {
     try {
         let result = await API.get(
-            `/movies/searchMovie/${dataLevel}/${page}?title=${title}&noUserStats=true`, {
+            `/movies/searchMovie/${dataLevel}/${page}?title=${title}&fuzzy_search=true&noUserStats=true`, {
                 cache: {
                     ttl: 2 * 60 * 1000 //2 minute
                 }
@@ -218,6 +218,30 @@ export async function getApps() {
         return handleError(error, true);
     }
 }
+
+//----------------------------------------------
+//----------------------------------------------
+
+export async function searchTorrentByName(accessToken, name, addToDb = false) {
+    try {
+        let result = await API.get(`/movies/torrent/searchByName/${name}`, {
+            params: {
+                addToDb: addToDb,
+            },
+            headers: {
+                authorization: `Bearer ${accessToken}`,
+                isBotRequest: true,
+            },
+            cache: false,
+        });
+        return result.data.data;
+    } catch (error) {
+        return handleError(error, true);
+    }
+}
+
+//----------------------------------------------
+//----------------------------------------------
 
 export function handleError(error, isResultArray = true) {
     if (error.response?.status === 404) {
