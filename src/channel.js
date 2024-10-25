@@ -8,8 +8,9 @@ export const torrentSourcesNames = Object.freeze([
 ]);
 
 export async function sendMoviesToChannel(bot) {
-    let imdbLimit = Math.max(config.minIMDBRate + 0.6, 8.5);
-    let malLimit = Math.max(config.minMALRate + 0.6, 8.5);
+    const scoreMargin = config.channelPostScoreMargin;
+    const imdbLimit = Math.min(config.minIMDBRate + scoreMargin, 9);
+    const malLimit = Math.min(config.minMALRate + scoreMargin, 9);
     while (true) {
         let movies = [];
         let retryCounter = 0;

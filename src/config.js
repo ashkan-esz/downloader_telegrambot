@@ -20,6 +20,7 @@ export default Object.freeze({
     sentryDns: process.env.SENTRY_DNS,
     minIMDBRate: Number(process.env.MIN_IMDB_RATE || 0),
     minMALRate: Number(process.env.MIN_MAL_RATE || 0),
+    channelPostScoreMargin: Number(process.env.CHANNEL_POST_SCORE_MARGIN || 0),
     initialSleepMinute: Number(process.env.INITIAL_SLEEP_MINUTE || 2),
     appsDownloadLink: process.env.APPS_DOWNLOAD_LINK,
 });
