@@ -242,7 +242,7 @@ bot.on('inline_query', async (ctx) => {
     ctx.answerInlineQuery(results, {cache_time: 0});
 });
 
-cron.schedule('*/5 * * * *', () => {
+cron.schedule('*/10 * * * *', () => {
     sendMoviesToChannel(bot);
 });
 
