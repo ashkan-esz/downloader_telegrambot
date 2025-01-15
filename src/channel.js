@@ -18,6 +18,12 @@ export async function sendMoviesToChannel(bot) {
             movies = await getChannelNewsAndUpdates();
             if (movies && movies !== 'error') {
                 for (let i = 0; i < movies.length; i++) {
+                    if (movies[i].sources.length === 1 &&
+                        movies[i].sources[0].sourceName === "eztv" &&
+                        !movies[i].type.includes('anime')) {
+                        // dont send shitty stuff into channel
+                        continue;
+                    }
                     if (
                         (movies[i].rating.imdb >= imdbLimit || movies[i].rating.myAnimeList >= malLimit) ||
                         movies[i].sources.find(s => !torrentSourcesNames.includes(s.sourceName))
